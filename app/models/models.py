@@ -3,7 +3,7 @@ SQLAlchemy models for dataset tables (read-only from API) and application tables
 Match ERD and CSV column mapping from project plan section 3.1.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, Float, ForeignKey, Integer, String, UniqueConstraint
@@ -123,7 +123,7 @@ class FavouriteList(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(timezone.utc))
 
     list_players: Mapped[list["FavouriteListPlayer"]] = relationship(
         "FavouriteListPlayer", back_populates="favourite_list", cascade="all, delete-orphan"
