@@ -55,13 +55,21 @@ Definition: `scripts/constants.py` → `TOP_5_COMPETITION_IDS = ["GB1", "ES1", "
 python scripts/filter_dataset.py
 ```
 
-- Row counts are printed so you can verify the dataset is reduced. The import script will read from `web/filtered/` when implemented.
+- Row counts are printed so you can verify the dataset is reduced.
 - Optional: `web/filtered/allowed_ids.json` is also written (allowed_club_ids and allowed_player_ids) for an alternative filter-at-import (option B) if you prefer not to keep filtered copies.
 
 **Database**
 
-- Run migrations (when Alembic is configured), or use `create_all` for minimal setup.
-- Import the filtered dataset with `scripts/filter_and_import.py` (reads from `web/filtered/`).
+- Create tables (no data yet) by running:
+  ```bash
+  python scripts/create_db.py
+  ```
+  This uses SQLAlchemy `Base.metadata.create_all(bind=engine)` and creates all tables (players, teams, player_performances, transfer_history, player_market_value, favourite_lists, favourite_list_players). Alternatively use Alembic: `alembic init`, create initial migration, then `alembic upgrade head`.
+- Load the filtered dataset into the DB (expects CSVs in `web/filtered/`; run `filter_dataset.py` first if needed):
+  ```bash
+  python scripts/load_data.py
+  ```
+  Import order: teams (deduplicated by club_id) → players → player_performances → transfer_history → player_market_value. Row counts per table are logged. Uses batch commits and streams CSVs to avoid loading everything into memory.
 
 ### 5. Run the server
 
@@ -101,8 +109,10 @@ frontend/
   script.js
 scripts/
   constants.py          # TOP_5_COMPETITION_IDS
+  create_db.py          # Create DB tables (create_all)
   filter_dataset.py     # Step 0: build allowed IDs, write web/filtered/
-  filter_and_import.py  # Import from web/filtered/ into DB
+  load_data.py          # Step 3: import web/filtered/ into DB (teams → players → …)
+  filter_and_import.py  # Legacy/stub; use load_data.py for import
 tests/
   conftest.py
   test_*.py

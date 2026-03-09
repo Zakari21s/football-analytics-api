@@ -1,10 +1,26 @@
 """
-SQLAlchemy models: dataset (Player, Team, PlayerPerformance, etc.) and application (FavouriteList, FavouriteListPlayer).
-Import Base from app.database for model definitions.
+SQLAlchemy models: dataset (Player, Team, etc.) and application (FavouriteList, FavouriteListPlayer).
+Import this module so all models are registered with Base before create_all().
 """
 
 from app.database import Base
+from app.models.models import (
+    FavouriteList,
+    FavouriteListPlayer,
+    Player,
+    PlayerMarketValue,
+    PlayerPerformance,
+    Team,
+    TransferHistory,
+)
 
-__all__ = ["Base"]
-
-# Models will be defined here or in separate modules and re-exported
+__all__ = [
+    "Base",
+    "Player",
+    "Team",
+    "PlayerPerformance",
+    "TransferHistory",
+    "PlayerMarketValue",
+    "FavouriteList",
+    "FavouriteListPlayer",
+]
