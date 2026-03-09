@@ -3,6 +3,7 @@
 venv/
 env/
 .env
+web/archive/
 *.pyc
 __pycache__/
 .pytest_cache/

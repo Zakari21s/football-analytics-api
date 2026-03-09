@@ -1,22 +1,30 @@
 """
 Application configuration loaded from environment variables.
-No secrets in code; use .env and .env.example for documentation.
+Uses pydantic-settings for validation and .env support. No secrets in code.
 """
 
-import os
 from pathlib import Path
 
-
-def _get_env(key: str, default: str | None = None) -> str | None:
-    """Read from environment; optional default."""
-    return os.environ.get(key, default)
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-# Database (SQLite for dev; use env for production)
-DATABASE_URL: str = _get_env("DATABASE_URL") or "sqlite:///./football_analytics.db"
+class Settings(BaseSettings):
+    """Settings loaded from environment and .env file."""
 
-# API key for X-API-Key authentication
-API_KEY: str | None = _get_env("API_KEY")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-# Optional: project root (for resolving paths)
-PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+    database_url: str = "sqlite:///./football_analytics.db"
+    api_key: str | None = None
+
+    @property
+    def project_root(self) -> Path:
+        """Project root (parent of app/)."""
+        return Path(__file__).resolve().parent.parent
+
+
+# Singleton for use in database.py, auth, etc.
+settings = Settings()

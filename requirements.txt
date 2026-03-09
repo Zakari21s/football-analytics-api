@@ -12,6 +12,7 @@ sqlalchemy>=2.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+python-multipart>=0.0.6
 
 # Migrations (optional; can use create_all for minimal setup)
 alembic>=1.13.0

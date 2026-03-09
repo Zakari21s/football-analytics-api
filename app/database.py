@@ -8,15 +8,15 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-from app.config import DATABASE_URL
+from app.config import settings
 
 # SQLite: enable foreign keys and use check_same_thread=False for FastAPI
 connect_args: dict = {}
-if DATABASE_URL.startswith("sqlite"):
+if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
 engine = create_engine(
-    DATABASE_URL,
+    settings.database_url,
     connect_args=connect_args,
     echo=False,  # Set True for SQL logging in dev
 )

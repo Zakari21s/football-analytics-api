@@ -42,10 +42,26 @@ Edit `.env` and set at least:
 - `DATABASE_URL` – e.g. `sqlite:///./football_analytics.db`
 - `API_KEY` – secret key for `X-API-Key` header
 
-### 4. Database
+### 4. Dataset filter (Step 0) and database
+
+The dataset is scoped to **top-5 European leagues** only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1).  
+Definition: `scripts/constants.py` → `TOP_5_COMPETITION_IDS = ["GB1", "ES1", "IT1", "L1", "FR1"]`.
+
+**Option A (chosen): filtered CSVs**
+
+- Run the filter script from the project root. It builds **allowed_club_ids** (from `team_details` and `team_competitions_seasons` where `competition_id` in TOP_5) and **allowed_player_ids** (from `player_performances` where `competition_id` in TOP_5, union players whose `current_club_id` is in allowed clubs). It then writes filtered CSVs to `web/filtered/`:
+
+```bash
+python scripts/filter_dataset.py
+```
+
+- Row counts are printed so you can verify the dataset is reduced. The import script will read from `web/filtered/` when implemented.
+- Optional: `web/filtered/allowed_ids.json` is also written (allowed_club_ids and allowed_player_ids) for an alternative filter-at-import (option B) if you prefer not to keep filtered copies.
+
+**Database**
 
 - Run migrations (when Alembic is configured), or use `create_all` for minimal setup.
-- Import filtered dataset with the script under `scripts/` (see project plan for filter and import order).
+- Import the filtered dataset with `scripts/filter_and_import.py` (reads from `web/filtered/`).
 
 ### 5. Run the server
 
@@ -84,7 +100,9 @@ frontend/
   styles.css
   script.js
 scripts/
-  filter_and_import.py # Filter CSVs (top-5 leagues), load DB
+  constants.py          # TOP_5_COMPETITION_IDS
+  filter_dataset.py     # Step 0: build allowed IDs, write web/filtered/
+  filter_and_import.py  # Import from web/filtered/ into DB
 tests/
   conftest.py
   test_*.py
