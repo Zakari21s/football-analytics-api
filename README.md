@@ -89,7 +89,11 @@ pytest
 
 ### 7. Frontend
 
-- Served via FastAPI static mount or open `frontend/index.html` and set API base URL as documented in the app.
+- Open the app URL (e.g. http://localhost:8000/); you are redirected to **/app/** where the frontend is served.
+- **Players**: sort (name, age, market_value, minutes_played), order, pagination (Prev/Next); table of players.
+- **Favourite lists**: create a list (name), view lists, click "View players" to see/add/remove players (add by player ID, remove with button).
+- Set your **API key** in the bar at the top (stored in `localStorage`) so all requests use the `X-API-Key` header. Without it you get "Invalid or missing API key" on API calls.
+- One `script.js` and one `styles.css`; no framework.
 
 ## Project structure
 
@@ -121,10 +125,14 @@ tests/
 ## API
 
 - Base path: `/api/v1`
-- Authentication: `X-API-Key` header required for `/api/v1/*`.
-- See `/docs` for full API documentation once endpoints are implemented.
+- Authentication: `X-API-Key` header required for `/api/v1/*` (documented in the OpenAPI security scheme).
+- See `/docs` (Swagger UI) and `/redoc` for full API documentation. You can export the docs to PDF by printing from your browser.
+
+## Dataset
+
+- Source: filtered football dataset derived from Transfermarkt CSV exports (as provided in the coursework materials).\n- Scope: top-5 European leagues only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) using `competition_id` in `TOP_5_COMPETITION_IDS`.\n- Licence: follow the licensing/terms-of-use specified in the coursework brief and the original data provider (Transfermarkt / Kaggle bundle). Do not redistribute raw data outside the course without checking licence/ToS.
 
 ## Deployment
 
-- Plan: deploy to a live host (e.g. PythonAnywhere or Docker on Railway/Render).
-- README and technical report will state the live URL once deployed.
+- Current status: **not deployed** – the project is designed to run locally with SQLite. All code, scripts, and tests are in this repo.
+- Recommended host (for coursework): PythonAnywhere or a Docker-based host (Railway, Render, etc.).\n- When deployed, set `DATABASE_URL` and `API_KEY` via environment variables on the host, run `scripts/create_db.py` and `scripts/load_data.py` once, and expose the ASGI app `app.main:app`.\n- Add the live API URL (and frontend URL, e.g. `/app/`) to this section and to the technical report if you complete deployment.

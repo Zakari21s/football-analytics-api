@@ -7,6 +7,7 @@
   --muted: #8b949e;
   --accent: #58a6ff;
   --border: #30363d;
+  --error: #f85149;
 }
 
 * {
@@ -21,6 +22,10 @@ body {
   line-height: 1.5;
 }
 
+.hidden {
+  display: none !important;
+}
+
 header {
   border-bottom: 1px solid var(--border);
   padding: 1rem 1.5rem;
@@ -29,6 +34,7 @@ header {
 nav {
   display: flex;
   gap: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 nav a {
@@ -40,21 +46,259 @@ nav a:hover {
   text-decoration: underline;
 }
 
+.api-key-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
+}
+
+.api-key-bar input {
+  min-width: 200px;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+}
+
+.api-key-bar button {
+  padding: 0.35rem 0.75rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 main {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 1.5rem;
 }
 
 section {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 h1 {
   font-size: 1.5rem;
   margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 0 0 0.75rem 0;
 }
 
 p {
   color: var(--muted);
+  margin: 0.5rem 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.controls label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.controls select {
+  padding: 0.35rem 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+}
+
+.controls button {
+  padding: 0.35rem 0.75rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+}
+
+.pagination button {
+  padding: 0.25rem 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  color: var(--error);
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.loading {
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.create-list {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.create-list input {
+  padding: 0.35rem 0.5rem;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+}
+
+.create-list button {
+  padding: 0.35rem 0.75rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lists-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+}
+
+.lists-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.lists-list .btn-view {
+  padding: 0.25rem 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.lists-list .btn-view:hover {
+  background: var(--border);
+}
+
+.list-detail {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.list-detail input[type="number"] {
+  padding: 0.35rem 0.5rem;
+  width: 120px;
+  margin-right: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+}
+
+.list-detail #add-player-btn {
+  padding: 0.35rem 0.75rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#list-players {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0 0;
+}
+
+#list-players li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+#list-players .btn-remove {
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+#list-players .btn-remove:hover {
+  background: rgba(248, 81, 73, 0.15);
 }

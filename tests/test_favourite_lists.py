@@ -95,3 +95,28 @@ def test_favourite_list_players_sort_by(client: TestClient, auth_headers: dict) 
     r2 = client.get(f"/api/v1/favourite-lists/{list_id}/players?sort_by=name&order=asc", headers=auth_headers)
     assert r2.status_code == 200
     assert isinstance(r2.json(), list)
+
+
+def test_favourite_lists_validation_empty_name(client: TestClient, auth_headers: dict) -> None:
+    """Empty name should fail validation (422 from Pydantic)."""
+    r = client.post("/api/v1/favourite-lists", json={"name": ""}, headers=auth_headers)
+    assert r.status_code == 422
+
+
+def test_favourite_lists_validation_missing_name(client: TestClient, auth_headers: dict) -> None:
+    """Missing name should fail validation (422 from Pydantic)."""
+    r = client.post("/api/v1/favourite-lists", json={}, headers=auth_headers)
+    assert r.status_code == 422
+
+
+def test_add_player_invalid_player_id(client: TestClient, auth_headers: dict) -> None:
+    """Adding a non-existent player_id should return 404."""
+    r = client.post("/api/v1/favourite-lists", json={"name": "InvalidPlayer"}, headers=auth_headers)
+    assert r.status_code == 201
+    list_id = r.json()["id"]
+    r2 = client.post(
+        f"/api/v1/favourite-lists/{list_id}/players",
+        json={"player_id": 999999999},
+        headers=auth_headers,
+    )
+    assert r2.status_code == 404

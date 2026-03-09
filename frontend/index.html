@@ -4,26 +4,83 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Football Analytics</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
     <nav>
-      <a href="/static/index.html">Home</a>
       <a href="#players">Players</a>
       <a href="#favourite-lists">Favourite Lists</a>
     </nav>
+    <div id="api-key-bar" class="api-key-bar hidden">
+      <label>API Key (X-API-Key):</label>
+      <input type="password" id="api-key-input" placeholder="Enter your API key">
+      <button type="button" id="api-key-save">Save</button>
+      <span id="api-key-status" class="muted"></span>
+    </div>
   </header>
   <main>
     <section id="players">
       <h1>Players</h1>
-      <p>Player list and sorting will be wired to GET /api/v1/players.</p>
+      <div class="controls">
+        <label>Sort by</label>
+        <select id="players-sort">
+          <option value="name">Name</option>
+          <option value="age">Age</option>
+          <option value="market_value">Market value</option>
+          <option value="minutes_played">Minutes played</option>
+        </select>
+        <label>Order</label>
+        <select id="players-order">
+          <option value="asc">Asc</option>
+          <option value="desc">Desc</option>
+        </select>
+        <button type="button" id="players-load">Load</button>
+        <span class="pagination">
+          <button type="button" id="players-prev">Prev</button>
+          <span id="players-page-info">Page 1</span>
+          <button type="button" id="players-next">Next</button>
+        </span>
+      </div>
+      <div id="players-error" class="error hidden"></div>
+      <div id="players-loading" class="loading hidden">Loading…</div>
+      <div id="players-table-wrap" class="table-wrap hidden">
+        <table id="players-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Age</th>
+              <th>Position</th>
+              <th>Market value</th>
+              <th>Minutes</th>
+            </tr>
+          </thead>
+          <tbody id="players-tbody"></tbody>
+        </table>
+      </div>
     </section>
+
     <section id="favourite-lists">
       <h1>Favourite Lists</h1>
-      <p>Create, view, and manage favourite player lists (CRUD + add/remove players).</p>
+      <div class="create-list">
+        <input type="text" id="list-name-input" placeholder="List name">
+        <button type="button" id="list-create">Create list</button>
+      </div>
+      <div id="lists-error" class="error hidden"></div>
+      <div id="lists-loading" class="loading hidden">Loading…</div>
+      <ul id="lists-list" class="lists-list"></ul>
+      <div id="list-detail" class="list-detail hidden">
+        <h2 id="list-detail-name"></h2>
+        <p>Add player by ID:</p>
+        <input type="number" id="add-player-id" placeholder="Player ID">
+        <button type="button" id="add-player-btn">Add</button>
+        <div id="list-players-wrap">
+          <ul id="list-players"></ul>
+        </div>
+      </div>
     </section>
   </main>
-  <script src="/static/script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

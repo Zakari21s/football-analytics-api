@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.auth import require_api_key
@@ -54,13 +55,19 @@ api_v1_router.include_router(favourite_lists.router, prefix="/favourite-lists", 
 api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 app.include_router(api_v1_router)
 
-# Optional: serve frontend static files
-frontend_path = Path(__file__).resolve().parent.parent / "frontend"
-if frontend_path.is_dir():
-    app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-
 
 @app.get("/health")
 def health() -> dict:
     """Health check for deployment and load balancers."""
     return {"status": "ok"}
+
+
+# Serve frontend at /app so API routes (/api, /docs, /health) are not shadowed
+frontend_path = Path(__file__).resolve().parent.parent / "frontend"
+if frontend_path.is_dir():
+    app.mount("/app", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+
+    @app.get("/")
+    def _root() -> RedirectResponse:
+        """Redirect to frontend."""
+        return RedirectResponse(url="/app/", status_code=302)
