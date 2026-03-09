@@ -14,4 +14,74 @@ def test_health(client: TestClient) -> None:
     assert r.json() == {"status": "ok"}
 
 
-# Add tests for GET /api/v1/players, GET /api/v1/players/{id}, sort_by, page, limit when implemented
+def test_players_list_requires_auth(client: TestClient) -> None:
+    r = client.get("/api/v1/players")
+    assert r.status_code == 401
+
+
+def test_players_list_pagination(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players?page=1&limit=5", headers=auth_headers)
+    assert r.status_code == 200
+    j = r.json()
+    assert "data" in j and "page" in j and "total_pages" in j and "total_count" in j
+    assert j["page"] == 1
+    assert len(j["data"]) <= 5
+    assert j["total_count"] >= 0
+
+
+def test_players_list_sort_by(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players?limit=3&sort_by=name&order=asc", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()["data"]
+    if len(data) >= 2:
+        names = [p["player_name"] for p in data]
+        assert names == sorted(names)
+
+
+def test_players_get_by_id_ok(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players?limit=1", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()["data"]
+    if not data:
+        pytest.skip("no players in DB")
+    pid = data[0]["player_id"]
+    r2 = client.get(f"/api/v1/players/{pid}", headers=auth_headers)
+    assert r2.status_code == 200
+    assert r2.json()["player_id"] == pid
+
+
+def test_players_get_by_id_404(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players/999999999", headers=auth_headers)
+    assert r.status_code == 404
+
+
+def test_players_performances_404_if_player_missing(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players/999999999/performances", headers=auth_headers)
+    assert r.status_code == 404
+
+
+def test_players_performances_pagination(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players?limit=1", headers=auth_headers)
+    if r.status_code != 200 or not r.json()["data"]:
+        pytest.skip("no players")
+    pid = r.json()["data"][0]["player_id"]
+    r2 = client.get(f"/api/v1/players/{pid}/performances?page=1&limit=5", headers=auth_headers)
+    assert r2.status_code == 200
+    j = r2.json()
+    assert "data" in j and "total_count" in j
+
+
+def test_players_transfers_404_if_player_missing(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players/999999999/transfers", headers=auth_headers)
+    assert r.status_code == 404
+
+
+def test_players_transfers_pagination(client: TestClient, auth_headers: dict) -> None:
+    r = client.get("/api/v1/players?limit=1", headers=auth_headers)
+    if r.status_code != 200 or not r.json()["data"]:
+        pytest.skip("no players")
+    pid = r.json()["data"][0]["player_id"]
+    r2 = client.get(f"/api/v1/players/{pid}/transfers?page=1&limit=5", headers=auth_headers)
+    assert r2.status_code == 200
+    j = r2.json()
+    assert "data" in j and "total_count" in j

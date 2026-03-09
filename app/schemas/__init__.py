@@ -2,4 +2,16 @@
 Pydantic request/response schemas for API validation and serialisation.
 """
 
-# Schemas will be defined here or in separate modules and re-exported
+from app.schemas.common import PaginatedResponse
+from app.schemas.performance import PlayerPerformanceResponse
+from app.schemas.player import PlayerResponse
+from app.schemas.team import TeamResponse
+from app.schemas.transfer import TransferHistoryResponse
+
+__all__ = [
+    "PaginatedResponse",
+    "PlayerPerformanceResponse",
+    "PlayerResponse",
+    "TeamResponse",
+    "TransferHistoryResponse",
+]
