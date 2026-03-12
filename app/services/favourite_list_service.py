@@ -14,6 +14,7 @@ from app.models import (
     Player,
     PlayerMarketValue,
     PlayerPerformance,
+    Team,
 )
 
 ListSortBy = Literal["age", "name", "market_value", "minutes_played"]
@@ -31,6 +32,10 @@ def _player_to_response_dict(
     *,
     latest_value: float | None = None,
     total_minutes: float | None = None,
+    total_goals: float | None = None,
+    total_assists: int | None = None,
+    total_cards: int | None = None,
+    current_club_name: str | None = None,
 ) -> dict:
     """Build player response dict (same shape as PlayerResponse)."""
     return {
@@ -42,9 +47,15 @@ def _player_to_response_dict(
         "current_club_id": player.current_club_id,
         "height": player.height,
         "citizenship": player.citizenship,
+        "foot": player.foot,
+        "player_image_url": player.player_image_url,
+        "current_club_name": current_club_name,
         "age": _age_from_dob(player.date_of_birth),
         "market_value": latest_value,
         "minutes_played": total_minutes,
+        "total_goals": total_goals,
+        "total_assists": total_assists,
+        "total_cards": total_cards,
     }
 
 
@@ -198,6 +209,8 @@ def get_players_in_list(
     player_ids = [p.player_id for p in rows]
     latest_values: dict[int, float] = {}
     total_minutes_map: dict[int, float] = {}
+    total_stats_map: dict[int, dict[str, float | int]] = {}
+    current_club_name_map: dict[int, str] = {}
     if player_ids:
         sub_max = (
             select(PlayerMarketValue.player_id, func.max(PlayerMarketValue.date_unix).label("md"))
@@ -230,11 +243,45 @@ def get_players_in_list(
             .all()
         )
         total_minutes_map = {r.player_id: float(r.m) for r in mins_rows}
-    return [
-        _player_to_response_dict(
-            p,
-            latest_value=latest_values.get(p.player_id),
-            total_minutes=total_minutes_map.get(p.player_id),
+        stats_rows = (
+            db.execute(
+                select(
+                    PlayerPerformance.player_id,
+                    func.coalesce(func.sum(PlayerPerformance.goals), 0).label("g"),
+                    func.coalesce(func.sum(PlayerPerformance.assists), 0).label("a"),
+                    func.coalesce(
+                        func.sum(
+                            func.coalesce(PlayerPerformance.yellow_cards, 0)
+                            + func.coalesce(PlayerPerformance.direct_red_cards, 0)
+                        ),
+                        0,
+                    ).label("c"),
+                )
+                .where(PlayerPerformance.player_id.in_(player_ids))
+                .group_by(PlayerPerformance.player_id)
+            )
+            .all()
         )
-        for p in rows
-    ]
+        total_stats_map = {
+            r.player_id: {"g": float(r.g), "a": int(r.a), "c": int(r.c)} for r in stats_rows
+        }
+    club_ids = {p.current_club_id for p in rows if p.current_club_id is not None}
+    if club_ids:
+        club_rows = db.execute(select(Team.club_id, Team.club_name).where(Team.club_id.in_(club_ids))).all()
+        current_club_name_map = {r.club_id: r.club_name for r in club_rows}
+
+    result: list[dict] = []
+    for p in rows:
+        stats = total_stats_map.get(p.player_id) or {}
+        result.append(
+            _player_to_response_dict(
+                p,
+                latest_value=latest_values.get(p.player_id),
+                total_minutes=total_minutes_map.get(p.player_id),
+                total_goals=stats.get("g"),
+                total_assists=stats.get("a"),
+                total_cards=stats.get("c"),
+                current_club_name=current_club_name_map.get(p.current_club_id or 0),
+            )
+        )
+    return result

@@ -23,12 +23,26 @@
     <section id="players">
       <h1>Players</h1>
       <div class="controls">
+        <label>League</label>
+        <select id="players-competition">
+          <option value="">All leagues</option>
+        </select>
+        <label>Season</label>
+        <select id="players-season">
+          <option value="">All seasons</option>
+        </select>
         <label>Sort by</label>
         <select id="players-sort">
           <option value="name">Name</option>
           <option value="age">Age</option>
+          <option value="position">Position</option>
+          <option value="foot">Foot</option>
           <option value="market_value">Market value</option>
           <option value="minutes_played">Minutes played</option>
+          <option value="goals">Goals</option>
+          <option value="assists">Assists</option>
+          <option value="cards">Cards</option>
+          <option value="clean_sheets">Clean sheets (GK)</option>
         </select>
         <label>Order</label>
         <select id="players-order">
@@ -42,18 +56,25 @@
           <button type="button" id="players-next">Next</button>
         </span>
       </div>
+      <p id="players-filter-context" class="players-filter-context muted hidden"></p>
       <div id="players-error" class="error hidden"></div>
       <div id="players-loading" class="loading hidden">Loading…</div>
       <div id="players-table-wrap" class="table-wrap hidden">
         <table id="players-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Photo</th>
               <th>Name</th>
               <th>Age</th>
               <th>Position</th>
+              <th>Foot</th>
               <th>Market value</th>
               <th>Minutes</th>
+              <th>Goals</th>
+              <th>Assists</th>
+              <th>Cards</th>
+              <th>Clean sheets</th>
+              <th>Current team</th>
             </tr>
           </thead>
           <tbody id="players-tbody"></tbody>
@@ -63,21 +84,54 @@
 
     <section id="favourite-lists">
       <h1>Favourite Lists</h1>
-      <div class="create-list">
-        <input type="text" id="list-name-input" placeholder="List name">
-        <button type="button" id="list-create">Create list</button>
-      </div>
-      <div id="lists-error" class="error hidden"></div>
-      <div id="lists-loading" class="loading hidden">Loading…</div>
-      <ul id="lists-list" class="lists-list"></ul>
-      <div id="list-detail" class="list-detail hidden">
-        <h2 id="list-detail-name"></h2>
-        <p>Add player by ID:</p>
-        <input type="number" id="add-player-id" placeholder="Player ID">
-        <button type="button" id="add-player-btn">Add</button>
-        <div id="list-players-wrap">
-          <ul id="list-players"></ul>
-        </div>
+      <div class="fav-layout">
+        <aside class="fav-sidebar">
+          <div class="create-list">
+            <input type="text" id="list-name-input" placeholder="List name">
+            <button type="button" id="list-create">Create list</button>
+          </div>
+          <div id="lists-error" class="error hidden"></div>
+          <div id="lists-loading" class="loading hidden">Loading…</div>
+          <ul id="lists-list" class="lists-list"></ul>
+        </aside>
+        <section class="fav-main">
+          <div id="list-detail" class="list-detail hidden">
+            <div class="list-detail-header">
+              <div>
+                <h2 id="list-detail-name"></h2>
+                <p id="list-detail-meta" class="muted"></p>
+              </div>
+              <button type="button" id="list-delete-btn" class="btn-danger hidden">Delete list</button>
+            </div>
+            <div class="add-player-by-name">
+              <p>Add player by name (type to search, click a row to add):</p>
+              <input type="text" id="add-player-name-input" placeholder="Player name" autocomplete="off">
+              <div id="add-by-name-results" class="add-by-name-results hidden"></div>
+            </div>
+            <div id="list-players-wrap">
+              <table class="fav-players-table">
+                <thead>
+                  <tr>
+                    <th>Photo</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Position</th>
+                    <th>Foot</th>
+                    <th>Market value</th>
+                    <th>Minutes</th>
+                    <th>Goals</th>
+                    <th>Assists</th>
+                    <th>Cards</th>
+                    <th>Clean sheets</th>
+                    <th>Current team</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="list-players"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   </main>

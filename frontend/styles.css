@@ -133,6 +133,12 @@ p {
   cursor: pointer;
 }
 
+.players-filter-context {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
 .pagination {
   display: flex;
   align-items: center;
@@ -174,6 +180,23 @@ p {
   overflow-x: auto;
 }
 
+.player-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-block;
+}
+
+.player-avatar.placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -196,6 +219,22 @@ tr:hover td {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.fav-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.fav-sidebar {
+  flex: 0 0 260px;
+}
+
+.fav-main {
+  flex: 1 1 0;
+  min-width: 260px;
+}
+
 .create-list {
   display: flex;
   gap: 0.5rem;
@@ -204,7 +243,7 @@ tr:hover td {
 
 .create-list input {
   padding: 0.35rem 0.5rem;
-  min-width: 200px;
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
@@ -218,78 +257,158 @@ tr:hover td {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .lists-list {
   list-style: none;
   padding: 0;
-  margin: 0 0 1rem 0;
+  margin: 0;
 }
 
 .lists-list li {
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--text);
 }
 
-.lists-list .btn-view {
-  padding: 0.25rem 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--accent);
+.lists-list li:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lists-list li.selected {
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid var(--accent);
+}
+
+.lists-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lists-list .list-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.btn-danger {
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.lists-list .btn-view:hover {
-  background: var(--border);
+.btn-danger:hover {
+  background: rgba(248, 81, 73, 0.15);
 }
 
 .list-detail {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
   padding: 1rem;
   background: var(--surface);
   border-radius: 8px;
   border: 1px solid var(--border);
 }
 
-.list-detail input[type="number"] {
+.list-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.add-player-by-name {
+  margin-bottom: 0.75rem;
+}
+
+.add-player-by-name input[type="text"] {
   padding: 0.35rem 0.5rem;
-  width: 120px;
-  margin-right: 0.5rem;
+  width: 100%;
+  max-width: 280px;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 4px;
 }
 
-.list-detail #add-player-btn {
-  padding: 0.35rem 0.75rem;
-  background: var(--accent);
-  color: var(--bg);
-  border: none;
+.add-by-name-results {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface);
   border-radius: 4px;
-  cursor: pointer;
+  border: 1px solid var(--border);
 }
 
-#list-players {
+.add-by-name-list {
   list-style: none;
   padding: 0;
-  margin: 1rem 0 0 0;
+  margin: 0;
 }
 
-#list-players li {
+.add-by-name-list .add-by-name-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.6rem;
+  margin: 0.15rem 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-#list-players .btn-remove {
+.add-by-name-list .add-by-name-row:hover,
+.add-by-name-list .add-by-name-row:focus {
+  background: var(--border);
+  outline: none;
+}
+
+.add-by-name-list .add-by-name-add-hint {
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-left: 0.5rem;
+}
+
+#list-players-wrap {
+  margin-top: 0.5rem;
+  overflow-x: auto;
+}
+
+.fav-players-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.fav-players-table th,
+.fav-players-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.fav-players-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.fav-players-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fav-players-table .btn-remove {
   padding: 0.2rem 0.5rem;
   background: transparent;
   border: 1px solid var(--error);

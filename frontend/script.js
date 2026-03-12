@@ -53,6 +53,8 @@ function initApiKeyBar() {
     if (setApiKey(input.value)) {
       status.textContent = 'Saved. Reload or use the app.';
       bar.classList.add('hidden');
+      loadCompetitions();
+      loadSeasons();
       loadPlayers();
       loadLists();
     }
@@ -71,16 +73,21 @@ async function loadPlayers() {
   }
   const sortBy = document.getElementById('players-sort')?.value || 'name';
   const order = document.getElementById('players-order')?.value || 'asc';
+  const competitionId = document.getElementById('players-competition')?.value || '';
+  const season = document.getElementById('players-season')?.value || '';
   showError('players-error', '');
   showEl('players-loading', true);
   showEl('players-table-wrap', false);
   try {
-    const qs = new URLSearchParams({
+    const params = {
       page: playersPage,
       limit: 20,
       sort_by: sortBy,
       order,
-    }).toString();
+    };
+    if (competitionId) params.competition_id = competitionId;
+    if (season) params.season = season;
+    const qs = new URLSearchParams(params).toString();
     const res = await fetch(`${API_BASE}/api/v1/players?${qs}`, { headers: apiHeaders() });
     if (res.status === 401) {
       showError('players-error', 'Invalid or missing API key.');
@@ -95,6 +102,17 @@ async function loadPlayers() {
     renderPlayersTable(data.data || []);
     document.getElementById('players-page-info').textContent =
       `Page ${data.page} of ${playersTotalPages} (${data.total_count} total)`;
+    const ctxEl = document.getElementById('players-filter-context');
+    if (ctxEl) {
+      const parts = [];
+      if (competitionId) {
+        const opt = document.getElementById('players-competition')?.selectedOptions?.[0];
+        parts.push(opt ? opt.textContent : competitionId);
+      }
+      if (season) parts.push(`season ${season}`);
+      ctxEl.textContent = parts.length ? `Stats for ${parts.join(', ')}` : '';
+      ctxEl.classList.toggle('hidden', !parts.length);
+    }
     const prevBtn = document.getElementById('players-prev');
     const nextBtn = document.getElementById('players-next');
     if (prevBtn) prevBtn.disabled = data.page <= 1;
@@ -114,15 +132,36 @@ function renderPlayersTable(rows) {
     .map(
       (p) =>
         `<tr>
-          <td>${p.player_id}</td>
+          <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
           <td>${escapeHtml(p.player_name || '')}</td>
           <td>${p.age ?? '—'}</td>
           <td>${escapeHtml((p.position || p.main_position) || '—')}</td>
+          <td>${escapeHtml(p.foot || '—')}</td>
           <td>${formatNumber(p.market_value)}</td>
           <td>${formatNumber(p.minutes_played)}</td>
+          <td>${formatNumber(p.total_goals)}</td>
+          <td>${p.total_assists ?? '—'}</td>
+          <td>${p.total_cards ?? '—'}</td>
+          <td>${p.total_clean_sheets ?? '—'}</td>
+          <td>${escapeHtml(p.current_club_name || '—')}</td>
         </tr>`
     )
     .join('');
+}
+
+function renderPlayerImageCell(url, name) {
+  const safeUrl = typeof url === 'string' && url.startsWith('http') ? url : null;
+  if (!safeUrl) {
+    const initials = (name || '')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+    return `<div class="player-avatar placeholder">${escapeHtml(initials || '?')}</div>`;
+  }
+  return `<img src="${safeUrl}" alt="${escapeHtml(name || '')}" class="player-avatar">`;
 }
 
 function escapeHtml(s) {
@@ -140,8 +179,50 @@ function formatNumber(n) {
   return String(num);
 }
 
+async function loadCompetitions() {
+  const key = getApiKey();
+  if (!key) return;
+  const sel = document.getElementById('players-competition');
+  if (!sel) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/competitions`, { headers: apiHeaders() });
+    if (!res.ok) return;
+    const list = await res.json();
+    const currentValue = sel.value;
+    sel.innerHTML = '<option value="">All leagues</option>' + (list || [])
+      .map((c) => `<option value="${escapeHtml(c.competition_id)}">${escapeHtml(c.competition_name || c.competition_id)}</option>`)
+      .join('');
+    if (currentValue) sel.value = currentValue;
+  } catch (_) {}
+}
+
+async function loadSeasons() {
+  const key = getApiKey();
+  if (!key) return;
+  const sel = document.getElementById('players-season');
+  if (!sel) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/seasons`, { headers: apiHeaders() });
+    if (!res.ok) return;
+    const list = await res.json();
+    const currentValue = sel.value;
+    sel.innerHTML = '<option value="">All seasons</option>' + (list || [])
+      .map((s) => `<option value="${escapeHtml(s.season_name)}">${escapeHtml(s.season_name)}</option>`)
+      .join('');
+    if (currentValue) sel.value = currentValue;
+  } catch (_) {}
+}
+
 function initPlayers() {
   document.getElementById('players-load')?.addEventListener('click', () => {
+    playersPage = 1;
+    loadPlayers();
+  });
+  document.getElementById('players-competition')?.addEventListener('change', () => {
+    playersPage = 1;
+    loadPlayers();
+  });
+  document.getElementById('players-season')?.addEventListener('change', () => {
     playersPage = 1;
     loadPlayers();
   });
@@ -157,7 +238,11 @@ function initPlayers() {
       loadPlayers();
     }
   });
-  if (getApiKey()) loadPlayers();
+  if (getApiKey()) {
+    loadCompetitions();
+    loadSeasons();
+    loadPlayers();
+  }
 }
 
 // ----- Favourite lists -----
@@ -193,20 +278,73 @@ function renderLists(lists) {
   ul.innerHTML = (lists || [])
     .map(
       (l) =>
-        `<li>
+        `<li data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}">
           <span>${escapeHtml(l.name)}</span>
-          <button type="button" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}" class="btn-view">View players</button>
+          <span class="list-actions">
+            <button type="button" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}" class="btn-delete">Delete</button>
+          </span>
         </li>`
     )
     .join('');
-  ul.querySelectorAll('.btn-view').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      currentListId = parseInt(btn.dataset.listId, 10);
-      document.getElementById('list-detail-name').textContent = btn.dataset.listName || '';
+  ul.querySelectorAll('li').forEach((li) => {
+    li.addEventListener('click', () => {
+      const id = parseInt(li.dataset.listId, 10);
+      if (!id) return;
+      currentListId = id;
+      // highlight selection
+      ul.querySelectorAll('li').forEach((other) => other.classList.remove('selected'));
+      li.classList.add('selected');
+      const name = li.dataset.listName || '';
+      document.getElementById('list-detail-name').textContent = name;
       document.getElementById('list-detail').classList.remove('hidden');
+      const deleteBtn = document.getElementById('list-delete-btn');
+      if (deleteBtn) {
+        deleteBtn.dataset.listId = String(id);
+        deleteBtn.classList.remove('hidden');
+      }
       loadListPlayers(currentListId);
     });
   });
+  ul.querySelectorAll('.btn-delete').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteList(parseInt(btn.dataset.listId, 10));
+    });
+  });
+}
+
+async function deleteList(listId) {
+  showError('lists-error', '');
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/favourite-lists/${listId}`, {
+      method: 'DELETE',
+      headers: apiHeaders(),
+    });
+    if (res.status === 401) {
+      showError('lists-error', 'Invalid or missing API key.');
+      return;
+    }
+    if (res.status === 404) {
+      showError('lists-error', 'Favourite list not found.');
+      return;
+    }
+    if (!res.ok) {
+      showError('lists-error', `Error ${res.status}`);
+      return;
+    }
+    if (currentListId === listId) {
+      document.getElementById('list-detail')?.classList.add('hidden');
+      currentListId = null;
+      const deleteBtn = document.getElementById('list-delete-btn');
+      if (deleteBtn) {
+        deleteBtn.classList.add('hidden');
+        deleteBtn.dataset.listId = '';
+      }
+    }
+    loadLists();
+  } catch (e) {
+    showError('lists-error', e.message || 'Request failed');
+  }
 }
 
 async function loadListPlayers(listId) {
@@ -217,18 +355,34 @@ async function loadListPlayers(listId) {
   );
   if (!res.ok) return;
   const players = await res.json();
-  const ul = document.getElementById('list-players');
-  if (!ul) return;
-  ul.innerHTML = (players || [])
+  const tbody = document.getElementById('list-players');
+  if (!tbody) return;
+  const count = (players || []).length || 0;
+  const metaEl = document.getElementById('list-detail-meta');
+  if (metaEl) {
+    metaEl.textContent = count ? `${count} player${count === 1 ? '' : 's'} in this list` : 'No players in this list yet.';
+  }
+  tbody.innerHTML = (players || [])
     .map(
       (p) =>
-        `<li>
-          ${escapeHtml(p.player_name)} (${p.player_id})
-          <button type="button" data-player-id="${p.player_id}" class="btn-remove">Remove</button>
-        </li>`
+        `<tr>
+          <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
+          <td>${escapeHtml(p.player_name || '')}</td>
+          <td>${p.age ?? '—'}</td>
+          <td>${escapeHtml((p.position || p.main_position) || '—')}</td>
+          <td>${escapeHtml(p.foot || '—')}</td>
+          <td>${formatNumber(p.market_value)}</td>
+          <td>${formatNumber(p.minutes_played)}</td>
+          <td>${formatNumber(p.total_goals)}</td>
+          <td>${p.total_assists ?? '—'}</td>
+          <td>${p.total_cards ?? '—'}</td>
+          <td>${p.total_clean_sheets ?? '—'}</td>
+          <td>${escapeHtml(p.current_club_name || '—')}</td>
+          <td><button type="button" data-player-id="${p.player_id}" class="btn-remove">Remove</button></td>
+        </tr>`
     )
     .join('');
-  ul.querySelectorAll('.btn-remove').forEach((b) => {
+  tbody.querySelectorAll('.btn-remove').forEach((b) => {
     b.addEventListener('click', () => removePlayerFromList(listId, parseInt(b.dataset.playerId, 10)));
   });
 }
@@ -239,6 +393,48 @@ async function removePlayerFromList(listId, playerId) {
     { method: 'DELETE', headers: apiHeaders() }
   );
   if (res.ok) loadListPlayers(listId);
+}
+
+async function searchPlayersByNameForList(query) {
+  const key = getApiKey();
+  if (!key) return [];
+  const term = (query || '').trim();
+  if (!term) return [];
+  const params = {
+    page: 1,
+    limit: 10,
+    sort_by: 'name',
+    order: 'asc',
+    search: term,
+  };
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/api/v1/players?${qs}`, { headers: apiHeaders() });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.data || [];
+}
+
+function renderAddByNameResults(players) {
+  const container = document.getElementById('add-by-name-results');
+  if (!container) return;
+  if (!players.length) {
+    container.innerHTML = '<p class="muted">No players found.</p>';
+    container.classList.remove('hidden');
+    return;
+  }
+  container.innerHTML =
+    '<ul class="add-by-name-list">' +
+    players
+      .map(
+        (p) =>
+          `<li class="add-by-name-row" data-player-id="${p.player_id}" role="button" tabindex="0">
+            <span>${escapeHtml(p.player_name)} <span class="muted">(${p.player_id})</span></span>
+            <span class="add-by-name-add-hint">Add to list</span>
+          </li>`
+      )
+      .join('') +
+    '</ul>';
+  container.classList.remove('hidden');
 }
 
 document.getElementById('list-create')?.addEventListener('click', async () => {
@@ -268,11 +464,39 @@ document.getElementById('list-create')?.addEventListener('click', async () => {
   }
 });
 
-document.getElementById('add-player-btn')?.addEventListener('click', async () => {
-  if (!currentListId) return;
-  const input = document.getElementById('add-player-id');
-  const playerId = parseInt(input?.value, 10);
-  if (!playerId) return;
+let addByNameSearchTimer = null;
+function initAddByNameSearch() {
+  const input = document.getElementById('add-player-name-input');
+  const container = document.getElementById('add-by-name-results');
+  if (!input || !container) return;
+  input.addEventListener('input', () => {
+    const query = input.value.trim();
+    if (addByNameSearchTimer) clearTimeout(addByNameSearchTimer);
+    if (!query) {
+      container.classList.add('hidden');
+      container.innerHTML = '';
+      return;
+    }
+    addByNameSearchTimer = setTimeout(async () => {
+      addByNameSearchTimer = null;
+      if (!currentListId) return;
+      showError('lists-error', '');
+      try {
+        const players = await searchPlayersByNameForList(query);
+        renderAddByNameResults(players);
+      } catch (e) {
+        showError('lists-error', e.message || 'Request failed');
+      }
+    }, 280);
+  });
+  input.addEventListener('blur', () => {
+    if (addByNameSearchTimer) clearTimeout(addByNameSearchTimer);
+    addByNameSearchTimer = null;
+  });
+}
+
+async function addPlayerToListFromRow(playerId) {
+  if (!currentListId || !playerId) return;
   showError('lists-error', '');
   try {
     const res = await fetch(
@@ -299,16 +523,46 @@ document.getElementById('add-player-btn')?.addEventListener('click', async () =>
       showError('lists-error', `Error ${res.status}`);
       return;
     }
-    input.value = '';
+    document.getElementById('add-player-name-input').value = '';
+    const container = document.getElementById('add-by-name-results');
+    container.classList.add('hidden');
+    container.innerHTML = '';
     loadListPlayers(currentListId);
   } catch (e) {
-    showError('lists-error', e.message);
+    showError('lists-error', e.message || 'Request failed');
   }
+}
+
+document.getElementById('add-by-name-results')?.addEventListener('click', async (e) => {
+  const row = e.target.closest('.add-by-name-row');
+  if (!row || !currentListId) return;
+  const playerId = parseInt(row.dataset.playerId, 10);
+  if (!playerId) return;
+  await addPlayerToListFromRow(playerId);
+});
+
+document.getElementById('add-by-name-results')?.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const row = e.target.closest('.add-by-name-row');
+  if (!row || !currentListId) return;
+  e.preventDefault();
+  const playerId = parseInt(row.dataset.playerId, 10);
+  if (!playerId) return;
+  await addPlayerToListFromRow(playerId);
 });
 
 function initLists() {
   if (getApiKey()) loadLists();
+  initAddByNameSearch();
 }
+
+// Hook up list-level delete button in detail header
+document.getElementById('list-delete-btn')?.addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  const id = parseInt(btn.dataset.listId || '0', 10);
+  if (!id) return;
+  deleteList(id);
+});
 
 // ----- Init -----
 document.addEventListener('DOMContentLoaded', () => {

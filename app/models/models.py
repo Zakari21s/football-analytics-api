@@ -29,6 +29,8 @@ class Player(Base):
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     position: Mapped[str | None] = mapped_column(String(128), nullable=True)
     main_position: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    foot: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    player_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     current_club_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("teams.club_id"), nullable=True
     )

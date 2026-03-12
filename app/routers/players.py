@@ -17,7 +17,18 @@ from app.services import player_service
 
 router = APIRouter()
 
-SortBy = Literal["age", "name", "market_value", "minutes_played"]
+SortBy = Literal[
+    "name",
+    "age",
+    "position",
+    "foot",
+    "market_value",
+    "minutes_played",
+    "goals",
+    "assists",
+    "cards",
+    "clean_sheets",
+]
 Order = Literal["asc", "desc"]
 
 
@@ -25,7 +36,11 @@ Order = Literal["asc", "desc"]
     "/",
     response_model=PaginatedResponse[PlayerResponse],
     summary="List players",
-    description="Paginated list of players. Sort by age, name, market_value (latest), or minutes_played (total).",
+    description=(
+        "Paginated list of players. Optional filter by league (competition_id) and season. "
+        "Sort by name, age, position, foot, market_value (latest), minutes_played (filtered), "
+        "assists, cards, or clean_sheets (keepers)."
+    ),
 )
 def list_players(
     db: Session = Depends(get_db),
@@ -33,8 +48,14 @@ def list_players(
     limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
     sort_by: SortBy = Query("name", description="Sort field"),
     order: Order = Query("asc", description="Sort order"),
+    search: str | None = Query(None, description="Filter by player name (partial match)"),
+    competition_id: str | None = Query(None, description="Filter by league (e.g. GB1, ES1)"),
+    season: str | None = Query(None, description="Filter by season (e.g. 2023, 08/09)"),
 ) -> PaginatedResponse[PlayerResponse]:
-    data, total_count = player_service.get_players(db, page=page, limit=limit, sort_by=sort_by, order=order)
+    data, total_count = player_service.get_players(
+        db, page=page, limit=limit, sort_by=sort_by, order=order,
+        search=search, competition_id=competition_id, season=season,
+    )
     total_pages = (total_count + limit - 1) // limit if total_count else 0
     return PaginatedResponse(
         data=[PlayerResponse(**d) for d in data],

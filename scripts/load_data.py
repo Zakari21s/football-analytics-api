@@ -131,6 +131,8 @@ def load_players(session: Session, valid_club_ids: set[int]) -> set[int]:
                         date_of_birth=_parse_date(row.get("date_of_birth")),
                         position=_str_trim(row.get("position"), 128),
                         main_position=_str_trim(row.get("main_position"), 64),
+                        foot=_str_trim(row.get("foot"), 16),
+                        player_image_url=_str_trim(row.get("player_image_url"), 512),
                         current_club_id=current_club_id,
                         height=_safe_float(row.get("height")),
                         citizenship=_str_trim(row.get("citizenship"), 128),
