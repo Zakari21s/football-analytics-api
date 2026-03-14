@@ -11,28 +11,29 @@
 |-----------------|--------|
 | **Cursor (AI-assisted editor)** | Design and architecture discussion; code generation for FastAPI routers, Pydantic schemas, SQLAlchemy models, and service layer functions; refactoring (e.g. moving from mounted sub-app to single app with router dependencies). |
 | **Claude / Codex (via Cursor)** | Writing and editing Python (app code, scripts, tests); drafting README and API descriptions; suggesting test cases and validation behaviour (e.g. 422 for empty name, 404 for invalid player_id). |
-| **Other** | *(List any other GenAI tools used, e.g. ChatGPT for report structure, Copilot for snippets, etc. If none, write “None.”)* |
+| **Other** | None. |
 
 ---
 
 ## 2. Sample conversation logs (appendix)
 
-*(Attach 2–4 representative excerpts from your sessions with GenAI tools. Each excerpt should be short: a few exchanges showing how you used the tool. Examples: “I asked for a FastAPI dependency for API key auth and applied the suggested code”; “I requested tests for favourite list validation and integrated the proposed pytest cases.”)*
+**Excerpt 1 – API key dependency and router setup**  
+I asked how to require X-API-Key on all `/api/v1` routes. The suggestion was to add a dependency (e.g. `require_api_key`) that reads the header and returns 401 if missing or invalid, and to attach it to the API v1 router via `APIRouter(..., dependencies=[Depends(require_api_key)]). I applied this so every route under `/api/v1` is protected without repeating the check in each handler.
 
-**Excerpt 1 – [Brief title, e.g. “API key dependency and router setup”]**  
-*(Paste or describe the exchange here.)*
+**Excerpt 2 – Player details endpoint design**  
+I asked how to return current market value, full market value history, and a career summary from one endpoint. The suggestion was a single `GET /players/{id}/details` response with: current value as the latest row per player in `player_market_value` (max date); history as all rows for that player ordered by date; career with seasons played (distinct from performances) and previous clubs (distinct team names from performances/teams or transfers). I implemented the service and Pydantic response schema (e.g. `PlayerDetailsResponse` with `market_value_history`, `career`) as suggested and wired the router.
 
-**Excerpt 2 – [Brief title]**  
-*(Paste or describe the exchange here.)*
+**Excerpt 3 – Top assists and youngest stars queries**  
+I requested analytics endpoints for top assists (sum of assists per player, optional season/competition filters) and youngest stars (players under an age limit, aggregated minutes and goals, sorted by minutes then goals). I was given SQLAlchemy query patterns (group by player, join performances/players, filter by age from date_of_birth). I implemented the routes and response schemas (e.g. `TopAssistsResponse`, `YoungestStarResponse`) and added the same optional query parameters as the existing analytics endpoints.
 
-**Excerpt 3 – [Brief title]**  
-*(Paste or describe the exchange here.)*
+**Excerpt 4 – Test cases for new endpoints**  
+I asked for tests for the new player details and analytics endpoints without changing the test DB. The suggestion was: (1) test_player_details_ok – GET players?limit=1, take first id, GET details, assert 200 and presence of player_id, player_name, current_market_value, market_value_history, career (seasons_played, previous_clubs); (2) test_player_details_404 for id 999999999; (3) test_top_assists and test_youngest_stars – GET with limit, assert 200 and list shape, and if non-empty assert first item keys and optionally descending order. I added these to test_players.py and test_analytics.py and ran pytest until green.
 
 ---
 
-## 3. Reflection on “creative, high-level” use
+## 3. Reflection on "creative, high-level" use
 
-*(Reflect in a short paragraph. For example: whether you used GenAI mainly for boilerplate and syntax vs. for design decisions; how you checked and adapted suggestions (e.g. tests, security, error handling); any use of AI for structuring the report or thinking through REST/status codes; and that you understand and can explain all submitted code and design choices.)*
+I used GenAI for both high-level design (e.g. REST structure, endpoint design, analytics ideas) and implementation (code, tests, documentation). I checked and adapted all suggestions—for example around security (API key handling), error handling (401/404/422), and validation (request/response schemas)—and ran tests to confirm behaviour. I understand and can explain all code and design choices in this submission.
 
 ---
 

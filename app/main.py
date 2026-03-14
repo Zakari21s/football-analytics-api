@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth import require_api_key
 from app.database import get_db
 from app.routers import analytics, favourite_lists, players, teams
-from app.schemas.common import PaginatedResponse
+from app.schemas.common import PaginatedResponse, build_paginated_response
 from app.schemas.competition import CompetitionResponse
 from app.schemas.player import PlayerResponse
 from app.schemas.season import SeasonResponse
@@ -134,17 +134,16 @@ def _player_search(
 ) -> PaginatedResponse[PlayerResponse]:
     search_term = (q or "").strip()
     if not search_term:
-        return PaginatedResponse(data=[], page=1, total_pages=0, total_count=0)
+        return build_paginated_response(data=[], total_count=0, page=1, limit=limit)
     data, total_count = player_service.get_players(
         db, page=1, limit=limit, sort_by="name", order="asc", search=search_term,
         competition_id=competition_id, season=season,
     )
-    total_pages = (total_count + limit - 1) // limit if total_count else 0
-    return PaginatedResponse(
+    return build_paginated_response(
         data=[PlayerResponse(**d) for d in data],
-        page=1,
-        total_pages=total_pages,
         total_count=total_count,
+        page=1,
+        limit=limit,
     )
 
 
@@ -153,13 +152,3 @@ api_v1_router.include_router(teams.router, prefix="/teams", tags=["teams"])
 api_v1_router.include_router(favourite_lists.router, prefix="/favourite-lists", tags=["favourite-lists"])
 api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 app.include_router(api_v1_router)
-
-
-# Temporary debug print to verify which routes exist when the app is imported by uvicorn.
-# This helps diagnose why /openapi.json only shows /health in some runs.
-try:  # pragma: no cover - debug only
-    route_paths = [r.path for r in app.routes]
-    print("DEBUG_ROUTES_ON_IMPORT:", route_paths)
-except Exception:
-    # Avoid failing app import if something goes wrong with debug logging.
-    pass

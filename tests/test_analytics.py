@@ -52,3 +52,28 @@ def test_top_scorers_with_filters(client: TestClient, auth_headers: dict) -> Non
     )
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+def test_top_assists(client: TestClient, auth_headers: dict) -> None:
+    """GET /analytics/top-assists?limit=5 → 200, list; if non-empty check keys and descending assists."""
+    r = client.get("/api/v1/analytics/top-assists?limit=5", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    if data:
+        first = data[0]
+        assert "player_id" in first and "player_name" in first and "total_assists" in first
+        assists = [x["total_assists"] for x in data]
+        assert assists == sorted(assists, reverse=True)
+
+
+def test_youngest_stars(client: TestClient, auth_headers: dict) -> None:
+    """GET /analytics/youngest-stars?limit=5 → 200, list; if non-empty check first item keys."""
+    r = client.get("/api/v1/analytics/youngest-stars?limit=5", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    if data:
+        first = data[0]
+        assert "player_id" in first and "player_name" in first
+        assert "age" in first and "total_minutes" in first and "total_goals" in first

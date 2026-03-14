@@ -8,9 +8,14 @@
 </head>
 <body>
   <header>
-    <nav>
-      <a href="#players">Players</a>
-      <a href="#favourite-lists">Favourite Lists</a>
+    <nav class="tabs">
+      <div class="tabs-spacer"></div>
+      <div class="tabs-center">
+        <button type="button" class="tab-link tab-active" data-tab-target="players">Players</button>
+        <button type="button" class="tab-link" data-tab-target="favourite-lists">Favourite Lists</button>
+        <button type="button" class="tab-link" data-tab-target="analytics">Analytics</button>
+      </div>
+      <div class="tabs-spacer"></div>
     </nav>
     <div id="api-key-bar" class="api-key-bar hidden">
       <label>API Key (X-API-Key):</label>
@@ -20,41 +25,49 @@
     </div>
   </header>
   <main>
-    <section id="players">
+    <section id="players" data-tab-panel="players">
       <h1>Players</h1>
-      <div class="controls">
-        <label>League</label>
-        <select id="players-competition">
-          <option value="">All leagues</option>
-        </select>
-        <label>Season</label>
-        <select id="players-season">
-          <option value="">All seasons</option>
-        </select>
-        <label>Sort by</label>
-        <select id="players-sort">
-          <option value="name">Name</option>
-          <option value="age">Age</option>
-          <option value="position">Position</option>
-          <option value="foot">Foot</option>
-          <option value="market_value">Market value</option>
-          <option value="minutes_played">Minutes played</option>
-          <option value="goals">Goals</option>
-          <option value="assists">Assists</option>
-          <option value="cards">Cards</option>
-          <option value="clean_sheets">Clean sheets (GK)</option>
-        </select>
-        <label>Order</label>
-        <select id="players-order">
-          <option value="asc">Asc</option>
-          <option value="desc">Desc</option>
-        </select>
-        <button type="button" id="players-load">Load</button>
-        <span class="pagination">
-          <button type="button" id="players-prev">Prev</button>
-          <span id="players-page-info">Page 1</span>
-          <button type="button" id="players-next">Next</button>
-        </span>
+      <div class="controls players-controls">
+        <div class="controls-row">
+          <div class="controls-main-search">
+            <label for="players-search">Search</label>
+            <input type="text" id="players-search" placeholder="Player name" autocomplete="off">
+          </div>
+          <div class="controls-filters">
+            <label>League</label>
+            <select id="players-competition">
+              <option value="">All leagues</option>
+            </select>
+            <label>Season</label>
+            <select id="players-season">
+              <option value="">All seasons</option>
+            </select>
+            <label>Sort by</label>
+            <select id="players-sort">
+              <option value="name">Name</option>
+              <option value="age">Age</option>
+              <option value="position">Position</option>
+              <option value="foot">Foot</option>
+              <option value="market_value">Market value</option>
+              <option value="minutes_played">Minutes played</option>
+              <option value="goals">Goals</option>
+              <option value="assists">Assists</option>
+              <option value="cards">Cards</option>
+              <option value="clean_sheets">Clean sheets (GK)</option>
+            </select>
+            <label>Order</label>
+            <select id="players-order">
+              <option value="asc">Asc</option>
+              <option value="desc">Desc</option>
+            </select>
+            <button type="button" id="players-load">Load</button>
+          </div>
+          <span class="pagination">
+            <button type="button" id="players-prev">Prev</button>
+            <span id="players-page-info">Page 1</span>
+            <button type="button" id="players-next">Next</button>
+          </span>
+        </div>
       </div>
       <p id="players-filter-context" class="players-filter-context muted hidden"></p>
       <div id="players-error" class="error hidden"></div>
@@ -75,6 +88,7 @@
               <th>Cards</th>
               <th>Clean sheets</th>
               <th>Current team</th>
+              <th>Add to list</th>
             </tr>
           </thead>
           <tbody id="players-tbody"></tbody>
@@ -82,59 +96,253 @@
       </div>
     </section>
 
-    <section id="favourite-lists">
+    <section id="favourite-lists" data-tab-panel="favourite-lists" class="hidden">
       <h1>Favourite Lists</h1>
-      <div class="fav-layout">
-        <aside class="fav-sidebar">
-          <div class="create-list">
-            <input type="text" id="list-name-input" placeholder="List name">
-            <button type="button" id="list-create">Create list</button>
+      <div class="fav-shell">
+        <div class="fav-panel card">
+          <div class="fav-panel-header">
+            <div class="fav-create-inline">
+              <h2 class="fav-sidebar-title">Create New List</h2>
+              <div class="create-list">
+                <input type="text" id="list-name-input" placeholder="List name">
+                <button type="button" id="list-create">Create</button>
+              </div>
+            </div>
+            <div class="fav-panel-status">
+              <div id="lists-error" class="error hidden"></div>
+              <div id="lists-loading" class="loading hidden">Loading…</div>
+            </div>
           </div>
-          <div id="lists-error" class="error hidden"></div>
-          <div id="lists-loading" class="loading hidden">Loading…</div>
-          <ul id="lists-list" class="lists-list"></ul>
-        </aside>
-        <section class="fav-main">
-          <div id="list-detail" class="list-detail hidden">
+
+          <h2 class="fav-sidebar-title fav-sidebar-title-secondary">Your lists</h2>
+          <ul id="lists-list" class="lists-list fav-lists-vertical"></ul>
+
+          <div id="list-detail" class="list-detail hidden fav-dropdown">
             <div class="list-detail-header">
-              <div>
+              <div class="list-detail-title">
                 <h2 id="list-detail-name"></h2>
                 <p id="list-detail-meta" class="muted"></p>
               </div>
-              <button type="button" id="list-delete-btn" class="btn-danger hidden">Delete list</button>
+              <div class="list-detail-actions">
+                <div class="list-view-toggle">
+                  <button type="button" class="list-view-btn list-view-btn-active" data-view="cards">
+                    Cards
+                  </button>
+                  <button type="button" class="list-view-btn" data-view="table">
+                    Table
+                  </button>
+                </div>
+                <button type="button" id="list-delete-btn" class="btn-danger hidden">Delete list</button>
+              </div>
             </div>
+
+            <div id="list-empty-state" class="list-empty-state hidden">
+              <div class="list-empty-icon">⭐</div>
+              <h3>No players in this list yet</h3>
+              <p>Search for players below and add them to start building this list.</p>
+            </div>
+
             <div class="add-player-by-name">
               <p>Add player by name (type to search, click a row to add):</p>
-              <input type="text" id="add-player-name-input" placeholder="Player name" autocomplete="off">
+              <input type="text" id="add-player-name-input" placeholder="Search players…" autocomplete="off">
               <div id="add-by-name-results" class="add-by-name-results hidden"></div>
             </div>
+
             <div id="list-players-wrap">
-              <table class="fav-players-table">
-                <thead>
-                  <tr>
-                    <th>Photo</th>
-                    <th>Name</th>
-                    <th>Age</th>
-                    <th>Position</th>
-                    <th>Foot</th>
-                    <th>Market value</th>
-                    <th>Minutes</th>
-                    <th>Goals</th>
-                    <th>Assists</th>
-                    <th>Cards</th>
-                    <th>Clean sheets</th>
-                    <th>Current team</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="list-players"></tbody>
-              </table>
+              <div id="list-players-grid" class="list-players-grid"></div>
+              <div id="list-players-table-wrap" class="table-wrap hidden">
+                <table class="fav-players-table">
+                  <thead>
+                    <tr>
+                      <th>Photo</th>
+                      <th>Name</th>
+                      <th>Age</th>
+                      <th>Position</th>
+                      <th>Foot</th>
+                      <th>Market value</th>
+                      <th>Minutes</th>
+                      <th>Goals</th>
+                      <th>Assists</th>
+                      <th>Cards</th>
+                      <th>Clean sheets</th>
+                      <th>Current team</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="list-players-table-body"></tbody>
+                </table>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="analytics" data-tab-panel="analytics" class="hidden">
+      <h1>Analytics</h1>
+      <div class="controls">
+        <label>League</label>
+        <select id="analytics-competition">
+          <option value="">All leagues</option>
+        </select>
+        <label>Season</label>
+        <select id="analytics-season">
+          <option value="">All seasons</option>
+        </select>
+        <label>Max age (youngest stars)</label>
+        <input type="number" id="analytics-age-limit" value="23" min="10" max="40">
+        <label>Sort youngest stars by</label>
+        <select id="analytics-youngest-sort">
+          <option value="minutes_desc">Minutes (high → low)</option>
+          <option value="minutes_asc">Minutes (low → high)</option>
+          <option value="goals_desc">Goals (high → low)</option>
+          <option value="goals_asc">Goals (low → high)</option>
+        </select>
+        <button type="button" id="analytics-reload">Reload</button>
+      </div>
+      <div id="analytics-error" class="error hidden"></div>
+      <div id="analytics-loading" class="loading hidden">Loading analytics…</div>
+      <div class="analytics-grid">
+        <section class="analytics-card">
+          <h2>Top scorers</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Goals</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-top-scorers-body"></tbody>
+          </table>
+        </section>
+        <section class="analytics-card">
+          <h2>Top assists</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Assists</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-top-assists-body"></tbody>
+          </table>
+        </section>
+        <section class="analytics-card">
+          <h2>Top market values</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-top-values-body"></tbody>
+          </table>
+        </section>
+        <section class="analytics-card">
+          <h2>Most minutes played</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Minutes</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-most-minutes-body"></tbody>
+          </table>
+        </section>
+        <section class="analytics-card analytics-span-2">
+          <h2>Youngest stars</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Age</th>
+                <th>Minutes</th>
+                <th>Goals</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-youngest-stars-body"></tbody>
+          </table>
         </section>
       </div>
     </section>
   </main>
+
+  <!-- Player details modal -->
+  <div id="player-details-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <button type="button" class="modal-close" id="player-details-close" aria-label="Close player details">×</button>
+      <div id="player-details-body">
+        <div class="modal-header-row">
+          <div id="player-details-avatar"></div>
+          <div class="modal-header-text">
+            <h2 id="player-details-name"></h2>
+            <p id="player-details-meta" class="muted"></p>
+          </div>
+        </div>
+        <div id="player-details-error" class="error hidden"></div>
+        <div class="modal-grid">
+          <section class="modal-section">
+            <h3>Current snapshot</h3>
+            <dl class="details-list">
+              <div>
+                <dt>Current club</dt>
+                <dd id="player-details-club">—</dd>
+              </div>
+              <div>
+                <dt>Position</dt>
+                <dd id="player-details-position">—</dd>
+              </div>
+              <div>
+                <dt>Age</dt>
+                <dd id="player-details-age">—</dd>
+              </div>
+              <div>
+                <dt>Nationality</dt>
+                <dd id="player-details-nationality">—</dd>
+              </div>
+              <div>
+                <dt>Current market value</dt>
+                <dd id="player-details-value">—</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="modal-section">
+            <h3>Career summary</h3>
+            <p id="player-details-career-text" class="muted">No career summary available.</p>
+          </section>
+        </div>
+        <section class="modal-section">
+          <h3>Market value history</h3>
+          <div id="player-details-chart-empty" class="muted">No market value history for this player.</div>
+          <div id="player-details-chart" class="chart-root"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Favourite list picker modal -->
+  <div id="list-picker-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <button type="button" class="modal-close" id="list-picker-close" aria-label="Close favourite list picker">×</button>
+      <h2>Choose a favourite list</h2>
+      <p class="muted">Pick a list to add this player to. Or create a new list in the Favourite Lists tab.</p>
+      <div id="list-picker-empty" class="muted hidden">You have no favourite lists yet. Create one first.</div>
+      <ul id="list-picker-body" class="lists-list"></ul>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
   <script src="script.js"></script>
 </body>
 </html>

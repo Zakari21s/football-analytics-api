@@ -75,6 +75,7 @@ async function loadPlayers() {
   const order = document.getElementById('players-order')?.value || 'asc';
   const competitionId = document.getElementById('players-competition')?.value || '';
   const season = document.getElementById('players-season')?.value || '';
+  const search = document.getElementById('players-search')?.value || '';
   showError('players-error', '');
   showEl('players-loading', true);
   showEl('players-table-wrap', false);
@@ -87,6 +88,7 @@ async function loadPlayers() {
     };
     if (competitionId) params.competition_id = competitionId;
     if (season) params.season = season;
+    if (search.trim()) params.search = search.trim();
     const qs = new URLSearchParams(params).toString();
     const res = await fetch(`${API_BASE}/api/v1/players?${qs}`, { headers: apiHeaders() });
     if (res.status === 401) {
@@ -131,11 +133,13 @@ function renderPlayersTable(rows) {
   tbody.innerHTML = rows
     .map(
       (p) =>
-        `<tr>
+        `<tr data-player-id="${p.player_id || ''}" class="player-row">
           <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
           <td>${escapeHtml(p.player_name || '')}</td>
           <td>${p.age ?? '—'}</td>
-          <td>${escapeHtml((p.position || p.main_position) || '—')}</td>
+          <td>${escapeHtml(
+            formatPositionLabel(p.position || p.main_position)
+          )}</td>
           <td>${escapeHtml(p.foot || '—')}</td>
           <td>${formatNumber(p.market_value)}</td>
           <td>${formatNumber(p.minutes_played)}</td>
@@ -144,9 +148,29 @@ function renderPlayersTable(rows) {
           <td>${p.total_cards ?? '—'}</td>
           <td>${p.total_clean_sheets ?? '—'}</td>
           <td>${escapeHtml(p.current_club_name || '—')}</td>
+          <td><button type="button" class="btn-add-to-list" data-player-id="${p.player_id}">Add</button></td>
         </tr>`
     )
     .join('');
+
+  // Make each player row clickable to open details modal
+  tbody.querySelectorAll('.player-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = parseInt(row.dataset.playerId || '0', 10);
+      if (!id) return;
+      openPlayerDetailsModal(id);
+    });
+  });
+
+  // Wire "Add" buttons to favourite list (uses currentListId if set)
+  tbody.querySelectorAll('.btn-add-to-list').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const playerId = parseInt(btn.dataset.playerId || '0', 10);
+      if (!playerId) return;
+      openListPickerModal(playerId);
+    });
+  });
 }
 
 function renderPlayerImageCell(url, name) {
@@ -179,38 +203,542 @@ function formatNumber(n) {
   return String(num);
 }
 
+function formatPositionLabel(raw) {
+  if (!raw) return '—';
+  const s = String(raw).toLowerCase().replace(/[-_]/g, ' ').trim();
+
+  // Goalkeepers
+  if (s.includes('goalkeeper') || s === 'gk') return 'GK';
+
+  // Full-backs
+  if (s.includes('right back') || s === 'rb') return 'RB';
+  if (s.includes('left back') || s === 'lb') return 'LB';
+
+  // Centre / central backs
+  if (
+    s.includes('centre back') ||
+    s.includes('center back') ||
+    s.includes('central back') ||
+    s === 'cb'
+  ) {
+    return 'CB';
+  }
+
+  // Midfielders
+  if (s.includes('defensive midfield') || s === 'cdm') return 'CDM';
+  if (s.includes('attacking midfield') || s === 'cam') return 'CAM';
+  if (s.includes('central midfield') || s.includes('centre midfield') || s === 'cm') return 'CM';
+  if (s.includes('midfield') || s === 'mf') return 'MF';
+
+  // Wingers / wide forwards
+  if (s.includes('right wing') || s.includes('right winger') || s === 'rw') return 'RW';
+  if (s.includes('left wing') || s.includes('left winger') || s === 'lw') return 'LW';
+  if (s.includes('winger') || s === 'w') return 'W';
+
+  // Forwards / strikers
+  if (s.includes('striker') || s.includes('centre forward') || s.includes('center forward')) {
+    return 'ST';
+  }
+  if (s.includes('forward') || s === 'fw') return 'FW';
+
+  // Fallback to original string
+  return raw;
+}
+
+// ----- Player details modal -----
+
+function closePlayerDetailsModal() {
+  const modal = document.getElementById('player-details-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function closeListPickerModal() {
+  const modal = document.getElementById('list-picker-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function openPlayerDetailsModal(playerId) {
+  const modal = document.getElementById('player-details-modal');
+  if (!modal) return;
+
+  // basic reset
+  document.getElementById('player-details-error')?.classList.add('hidden');
+  document.getElementById('player-details-error').textContent = '';
+  document.getElementById('player-details-chart').innerHTML = '';
+  document.getElementById('player-details-chart-empty').classList.remove('hidden');
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/players/${playerId}/details`, {
+      headers: apiHeaders(),
+    });
+    if (res.status === 401) {
+      showPlayerDetailsError('Invalid or missing API key.');
+      return;
+    }
+    if (res.status === 404) {
+      showPlayerDetailsError('Player not found.');
+      return;
+    }
+    if (!res.ok) {
+      showPlayerDetailsError(`Error ${res.status}`);
+      return;
+    }
+    const details = await res.json();
+    renderPlayerDetails(details);
+  } catch (e) {
+    showPlayerDetailsError(e.message || 'Request failed');
+  }
+}
+
+function openListPickerModal(playerId) {
+  const modal = document.getElementById('list-picker-modal');
+  const body = document.getElementById('list-picker-body');
+  const empty = document.getElementById('list-picker-empty');
+  if (!modal || !body || !empty) return;
+
+  // Read available lists from existing sidebar DOM
+  const listItems = Array.from(document.querySelectorAll('#lists-list li'));
+  if (!listItems.length) {
+    // No lists yet: guide user to create one
+    closeListPickerModal();
+    showError('lists-error', 'You have no favourite lists yet. Create one, then add players.');
+    const favTab = document.querySelector('.tab-link[data-tab-target="favourite-lists"]');
+    if (favTab) favTab.click();
+    const input = document.getElementById('list-name-input');
+    if (input) input.focus();
+    return;
+  }
+
+  body.innerHTML = listItems
+    .map(
+      (li) =>
+        `<li>
+          <button type="button" class="list-picker-option" data-list-id="${li.dataset.listId}">
+            ${escapeHtml(li.dataset.listName || '')}
+          </button>
+        </li>`
+    )
+    .join('');
+  empty.classList.add('hidden');
+
+  modal.dataset.playerId = String(playerId);
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  body.querySelectorAll('.list-picker-option').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const listId = parseInt(btn.dataset.listId || '0', 10);
+      if (!listId || !playerId) return;
+
+      // Update currentListId and visual selection in sidebar
+      currentListId = listId;
+      const sidebarLis = document.querySelectorAll('#lists-list li');
+      sidebarLis.forEach((li) => {
+        li.classList.toggle('selected', parseInt(li.dataset.listId || '0', 10) === listId);
+      });
+      const name = btn.textContent || '';
+      const nameEl = document.getElementById('list-detail-name');
+      if (nameEl) nameEl.textContent = name.trim();
+      document.getElementById('list-detail')?.classList.remove('hidden');
+
+      await addPlayerToListFromRow(playerId);
+      closeListPickerModal();
+    });
+  });
+}
+
+function showPlayerDetailsError(message) {
+  const el = document.getElementById('player-details-error');
+  if (!el) return;
+  el.textContent = message || '';
+  el.classList.toggle('hidden', !message);
+}
+
+function renderPlayerDetails(details) {
+  if (!details) return;
+  const name = details.player_name || 'Unknown player';
+  const club = details.current_club_name || '—';
+  const positionRaw = details.position || details.main_position || '';
+  const position = formatPositionLabel(positionRaw);
+  const age = details.age ?? '—';
+  const nationality = details.citizenship || '—';
+  const value =
+    details.current_market_value != null ? formatNumber(details.current_market_value) : '—';
+
+  const avatarContainer = document.getElementById('player-details-avatar');
+  if (avatarContainer) {
+    avatarContainer.innerHTML = renderPlayerImageCell(details.player_image_url, name);
+  }
+
+  const nameEl = document.getElementById('player-details-name');
+  if (nameEl) nameEl.textContent = name;
+
+  const metaEl = document.getElementById('player-details-meta');
+  if (metaEl) {
+    const parts = [];
+    if (age !== '—') parts.push(`${age} yrs`);
+    if (position !== '—') parts.push(position);
+    if (nationality !== '—') parts.push(nationality);
+    metaEl.textContent = parts.length ? parts.join(' • ') : '';
+  }
+
+  const clubEl = document.getElementById('player-details-club');
+  if (clubEl) clubEl.textContent = club;
+
+  const posEl = document.getElementById('player-details-position');
+  if (posEl) posEl.textContent = position;
+
+  const ageEl = document.getElementById('player-details-age');
+  if (ageEl) ageEl.textContent = age;
+
+  const natEl = document.getElementById('player-details-nationality');
+  if (natEl) natEl.textContent = nationality;
+
+  const valueEl = document.getElementById('player-details-value');
+  if (valueEl) valueEl.textContent = value;
+
+  const career = details.career || {};
+  const seasons = career.seasons_played ?? 0;
+  const clubs = Array.isArray(career.previous_clubs) ? career.previous_clubs : [];
+  const careerTextEl = document.getElementById('player-details-career-text');
+  if (careerTextEl) {
+    if (!seasons && !clubs.length) {
+      careerTextEl.textContent = 'No career summary available.';
+    } else {
+      const bits = [];
+      if (seasons) bits.push(`${seasons} season${seasons === 1 ? '' : 's'} recorded`);
+      if (clubs.length) bits.push(`previously at ${clubs.join(', ')}`);
+      careerTextEl.textContent = bits.join(' • ');
+    }
+  }
+
+  const history = Array.isArray(details.market_value_history)
+    ? details.market_value_history
+    : [];
+  if (!history.length) {
+    const emptyEl = document.getElementById('player-details-chart-empty');
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    return;
+  }
+  const emptyEl = document.getElementById('player-details-chart-empty');
+  if (emptyEl) emptyEl.classList.add('hidden');
+  renderMarketValueChart(history);
+}
+
+function renderMarketValueChart(points) {
+  const container = document.getElementById('player-details-chart');
+  if (!container || !points.length) return;
+
+  // Normalise data
+  const parsed = points
+    .map((p) => {
+      const d = new Date(p.date);
+      const v = Number(p.value);
+      if (!p.date || isNaN(d.getTime()) || isNaN(v)) return null;
+      return { date: d, value: v };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.date - b.date);
+  if (!parsed.length) return;
+
+  const minDate = parsed[0].date.getTime();
+  const maxDate = parsed[parsed.length - 1].date.getTime();
+  const minValue = parsed.reduce((m, p) => Math.min(m, p.value), parsed[0].value);
+  const maxValue = parsed.reduce((m, p) => Math.max(m, p.value), parsed[0].value);
+
+  const width = 600;
+  const height = 150;
+  const paddingLeft = 30;
+  const paddingRight = 10;
+  const paddingTop = 10;
+  const paddingBottom = 20;
+
+  const xSpan = maxDate - minDate || 1;
+  const ySpan = maxValue - minValue || 1;
+
+  const xScale = (t) =>
+    paddingLeft +
+    ((t - minDate) / xSpan) * (width - paddingLeft - paddingRight);
+  const yScale = (v) =>
+    paddingTop +
+    (1 - (v - minValue) / ySpan) * (height - paddingTop - paddingBottom);
+
+  const pathD = parsed
+    .map((p, i) => {
+      const x = xScale(p.date.getTime());
+      const y = yScale(p.value);
+      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+    })
+    .join(' ');
+
+  const lastPoint = parsed[parsed.length - 1];
+  const lastLabel = `${lastPoint.date.getFullYear()}`;
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <line class="chart-axis" x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${
+        height - paddingBottom
+      }" />
+      <line class="chart-axis" x1="${paddingLeft}" y1="${height - paddingBottom}" x2="${
+        width - paddingRight
+      }" y2="${height - paddingBottom}" />
+      <path class="chart-line" d="${pathD}" />
+      ${parsed
+        .map((p) => {
+          const x = xScale(p.date.getTime());
+          const y = yScale(p.value);
+          const label = formatNumber(p.value);
+          return `
+            <circle class="chart-point" cx="${x}" cy="${y}" r="2.5" />
+            <text class="chart-label" x="${x}" y="${y - 6}" text-anchor="middle">${label}</text>
+          `;
+        })
+        .join('')}
+      <text class="chart-label" x="${xScale(
+        lastPoint.date.getTime()
+      )}" y="${height - 4}" text-anchor="end">${lastLabel}</text>
+    </svg>
+  `;
+}
+
 async function loadCompetitions() {
   const key = getApiKey();
   if (!key) return;
-  const sel = document.getElementById('players-competition');
-  if (!sel) return;
   try {
     const res = await fetch(`${API_BASE}/api/v1/competitions`, { headers: apiHeaders() });
     if (!res.ok) return;
     const list = await res.json();
-    const currentValue = sel.value;
-    sel.innerHTML = '<option value="">All leagues</option>' + (list || [])
-      .map((c) => `<option value="${escapeHtml(c.competition_id)}">${escapeHtml(c.competition_name || c.competition_id)}</option>`)
-      .join('');
-    if (currentValue) sel.value = currentValue;
+    const selects = [
+      document.getElementById('players-competition'),
+      document.getElementById('analytics-competition'),
+    ].filter(Boolean);
+    selects.forEach((sel) => {
+      const currentValue = sel.value;
+      sel.innerHTML =
+        '<option value="">All leagues</option>' +
+        (list || [])
+          .map(
+            (c) =>
+              `<option value="${escapeHtml(c.competition_id)}">${escapeHtml(
+                c.competition_name || c.competition_id
+              )}</option>`
+          )
+          .join('');
+      if (currentValue) sel.value = currentValue;
+    });
   } catch (_) {}
 }
 
 async function loadSeasons() {
   const key = getApiKey();
   if (!key) return;
-  const sel = document.getElementById('players-season');
-  if (!sel) return;
   try {
     const res = await fetch(`${API_BASE}/api/v1/seasons`, { headers: apiHeaders() });
     if (!res.ok) return;
     const list = await res.json();
-    const currentValue = sel.value;
-    sel.innerHTML = '<option value="">All seasons</option>' + (list || [])
-      .map((s) => `<option value="${escapeHtml(s.season_name)}">${escapeHtml(s.season_name)}</option>`)
-      .join('');
-    if (currentValue) sel.value = currentValue;
+    const selects = [
+      document.getElementById('players-season'),
+      document.getElementById('analytics-season'),
+    ].filter(Boolean);
+    selects.forEach((sel) => {
+      const currentValue = sel.value;
+      sel.innerHTML =
+        '<option value="">All seasons</option>' +
+        (list || [])
+          .map(
+            (s) =>
+              `<option value="${escapeHtml(s.season_name)}">${escapeHtml(s.season_name)}</option>`
+          )
+          .join('');
+      if (currentValue) sel.value = currentValue;
+    });
   } catch (_) {}
+}
+
+// ----- Analytics -----
+
+async function loadAnalytics() {
+  const key = getApiKey();
+  if (!key) {
+    document.getElementById('api-key-bar')?.classList.remove('hidden');
+    return;
+  }
+  showError('analytics-error', '');
+  showEl('analytics-loading', true);
+
+  const competitionId = document.getElementById('analytics-competition')?.value || '';
+  const season = document.getElementById('analytics-season')?.value || '';
+  const ageLimitRaw = document.getElementById('analytics-age-limit')?.value || '23';
+  const ageLimit = Math.min(40, Math.max(10, parseInt(ageLimitRaw || '23', 10) || 23));
+  const youngestSort = document.getElementById('analytics-youngest-sort')?.value || 'minutes_desc';
+
+  try {
+    const [topScorers, topAssists, topValues, mostMinutes, youngestStars] = await Promise.all([
+      fetchAnalytics(`/api/v1/analytics/top-scorers`, { season, competition_id: competitionId }),
+      fetchAnalytics(`/api/v1/analytics/top-assists`, { season, competition_id: competitionId }),
+      fetchAnalytics(`/api/v1/analytics/top-market-values`, {}),
+      fetchAnalytics(`/api/v1/analytics/most-minutes-played`, {
+        season,
+        competition_id: competitionId,
+      }),
+      fetchAnalytics(`/api/v1/analytics/youngest-stars`, {
+        season,
+        competition_id: competitionId,
+        age_limit: ageLimit,
+      }),
+    ]);
+
+    renderAnalyticsTopScorers(topScorers || []);
+    renderAnalyticsTopAssists(topAssists || []);
+    renderAnalyticsTopValues(topValues || []);
+    renderAnalyticsMostMinutes(mostMinutes || []);
+    renderAnalyticsYoungestStars(youngestStars || [], youngestSort);
+  } catch (e) {
+    showError('analytics-error', e.message || 'Failed to load analytics');
+  } finally {
+    showEl('analytics-loading', false);
+  }
+}
+
+async function fetchAnalytics(path, params) {
+  const qs = new URLSearchParams(
+    Object.entries(params || {}).reduce((acc, [k, v]) => {
+      if (v != null && String(v).trim() !== '') acc[k] = String(v).trim();
+      return acc;
+    }, {})
+  ).toString();
+  const url = `${API_BASE}${path}${qs ? `?${qs}` : ''}`;
+  const res = await fetch(url, { headers: apiHeaders() });
+  if (res.status === 401) {
+    throw new Error('Invalid or missing API key.');
+  }
+  if (!res.ok) {
+    throw new Error(`Analytics error ${res.status}`);
+  }
+  return res.json();
+}
+
+function renderAnalyticsTopScorers(rows) {
+  const tbody = document.getElementById('analytics-top-scorers-body');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No data.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (r, idx) =>
+        `<tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.player_name)}</td>
+          <td>${formatNumber(r.total_goals)}</td>
+        </tr>`
+    )
+    .join('');
+}
+
+function renderAnalyticsTopAssists(rows) {
+  const tbody = document.getElementById('analytics-top-assists-body');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No data.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (r, idx) =>
+        `<tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.player_name)}</td>
+          <td>${r.total_assists}</td>
+        </tr>`
+    )
+    .join('');
+}
+
+function renderAnalyticsTopValues(rows) {
+  const tbody = document.getElementById('analytics-top-values-body');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No data.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (r, idx) =>
+        `<tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.player_name)}</td>
+          <td>${formatNumber(r.market_value)}</td>
+        </tr>`
+    )
+    .join('');
+}
+
+function renderAnalyticsMostMinutes(rows) {
+  const tbody = document.getElementById('analytics-most-minutes-body');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No data.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (r, idx) =>
+        `<tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.player_name)}</td>
+          <td>${formatNumber(r.total_minutes)}</td>
+        </tr>`
+    )
+    .join('');
+}
+
+function renderAnalyticsYoungestStars(rows, sortKey) {
+  const tbody = document.getElementById('analytics-youngest-stars-body');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">No data.</td></tr>';
+    return;
+  }
+  const sorted = [...rows];
+  sorted.sort((a, b) => {
+    const am = Number(a.total_minutes) || 0;
+    const bm = Number(b.total_minutes) || 0;
+    const ag = Number(a.total_goals) || 0;
+    const bg = Number(b.total_goals) || 0;
+    switch (sortKey) {
+      case 'minutes_asc':
+        return am - bm || bg - ag;
+      case 'goals_desc':
+        return bg - ag || bm - am;
+      case 'goals_asc':
+        return ag - bg || bm - am;
+      case 'minutes_desc':
+      default:
+        return bm - am || bg - ag;
+    }
+  });
+
+  tbody.innerHTML = sorted
+    .map(
+      (r, idx) =>
+        `<tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.player_name)}</td>
+          <td>${r.age ?? '—'}</td>
+          <td>${formatNumber(r.total_minutes)}</td>
+          <td>${formatNumber(r.total_goals)}</td>
+        </tr>`
+    )
+    .join('');
 }
 
 function initPlayers() {
@@ -226,6 +754,18 @@ function initPlayers() {
     playersPage = 1;
     loadPlayers();
   });
+  const searchInput = document.getElementById('players-search');
+  if (searchInput) {
+    let searchTimer = null;
+    searchInput.addEventListener('input', () => {
+      const term = searchInput.value.trim();
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        playersPage = 1;
+        loadPlayers();
+      }, term ? 250 : 0);
+    });
+  }
   document.getElementById('players-prev')?.addEventListener('click', () => {
     if (playersPage > 1) {
       playersPage--;
@@ -243,10 +783,62 @@ function initPlayers() {
     loadSeasons();
     loadPlayers();
   }
+
+  // Close modal handlers
+  document.getElementById('player-details-close')?.addEventListener('click', () => {
+    closePlayerDetailsModal();
+  });
+  document.getElementById('player-details-modal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-backdrop')) {
+      closePlayerDetailsModal();
+    }
+  });
+  document.getElementById('list-picker-close')?.addEventListener('click', () => {
+    closeListPickerModal();
+  });
+  document.getElementById('list-picker-modal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-backdrop')) {
+      closeListPickerModal();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closePlayerDetailsModal();
+      closeListPickerModal();
+    }
+  });
 }
 
+function initTabs() {
+  const links = Array.from(document.querySelectorAll('.tab-link'));
+  const panels = Array.from(document.querySelectorAll('[data-tab-panel]'));
+  if (!links.length || !panels.length) return;
+
+  function setActive(targetId) {
+    links.forEach((btn) => {
+      const isActive = btn.dataset.tabTarget === targetId;
+      btn.classList.toggle('tab-active', isActive);
+    });
+    panels.forEach((panel) => {
+      const isMatch = panel.dataset.tabPanel === targetId;
+      panel.classList.toggle('hidden', !isMatch);
+    });
+  }
+
+  links.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tabTarget;
+      if (!target) return;
+      setActive(target);
+    });
+  });
+
+  // Ensure default tab is visible
+  setActive('players');
+}
 // ----- Favourite lists -----
 let currentListId = null;
+let currentListView = 'cards'; // 'cards' or 'table'
 
 async function loadLists() {
   const key = getApiKey();
@@ -355,21 +947,67 @@ async function loadListPlayers(listId) {
   );
   if (!res.ok) return;
   const players = await res.json();
-  const tbody = document.getElementById('list-players');
-  if (!tbody) return;
+  const grid = document.getElementById('list-players-grid');
+  const tableWrap = document.getElementById('list-players-table-wrap');
+  const tableBody = document.getElementById('list-players-table-body');
+  const emptyState = document.getElementById('list-empty-state');
+  if (!grid || !emptyState || !tableWrap || !tableBody) return;
   const count = (players || []).length || 0;
   const metaEl = document.getElementById('list-detail-meta');
   if (metaEl) {
-    metaEl.textContent = count ? `${count} player${count === 1 ? '' : 's'} in this list` : 'No players in this list yet.';
+    metaEl.textContent = count
+      ? `${count} player${count === 1 ? '' : 's'} in this list`
+      : 'No players in this list yet.';
   }
-  tbody.innerHTML = (players || [])
+  if (!players.length) {
+    grid.innerHTML = '';
+    tableBody.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  emptyState.classList.add('hidden');
+
+  // Cards view
+  grid.innerHTML = (players || [])
+    .map((p) => {
+      const pos = formatPositionLabel(p.position || p.main_position);
+      const metaParts = [];
+      if (pos && pos !== '—') metaParts.push(pos);
+      if (p.age != null) metaParts.push(`${p.age} yrs`);
+      const meta = metaParts.join(' • ');
+      const value = formatNumber(p.market_value);
+      return `
+        <div class="list-player-card">
+          <div class="list-player-avatar">
+            ${renderPlayerImageCell(p.player_image_url, p.player_name)}
+          </div>
+          <div class="list-player-main">
+            <div class="list-player-name">${escapeHtml(p.player_name || '')}</div>
+            <div class="list-player-meta">${escapeHtml(meta || (p.current_club_name || ''))}</div>
+            <div class="list-player-value">Value: ${value}</div>
+          </div>
+          <div class="list-player-actions">
+            <button type="button" data-player-id="${p.player_id}" class="btn-remove">Remove</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+  grid.querySelectorAll('.btn-remove').forEach((b) => {
+    b.addEventListener('click', () =>
+      removePlayerFromList(listId, parseInt(b.dataset.playerId, 10))
+    );
+  });
+
+  // Table view
+  tableBody.innerHTML = (players || [])
     .map(
       (p) =>
         `<tr>
           <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
           <td>${escapeHtml(p.player_name || '')}</td>
           <td>${p.age ?? '—'}</td>
-          <td>${escapeHtml((p.position || p.main_position) || '—')}</td>
+          <td>${escapeHtml(formatPositionLabel(p.position || p.main_position))}</td>
           <td>${escapeHtml(p.foot || '—')}</td>
           <td>${formatNumber(p.market_value)}</td>
           <td>${formatNumber(p.minutes_played)}</td>
@@ -382,9 +1020,14 @@ async function loadListPlayers(listId) {
         </tr>`
     )
     .join('');
-  tbody.querySelectorAll('.btn-remove').forEach((b) => {
-    b.addEventListener('click', () => removePlayerFromList(listId, parseInt(b.dataset.playerId, 10)));
+  tableBody.querySelectorAll('.btn-remove').forEach((b) => {
+    b.addEventListener('click', () =>
+      removePlayerFromList(listId, parseInt(b.dataset.playerId, 10))
+    );
   });
+
+  // Apply current view
+  applyListView();
 }
 
 async function removePlayerFromList(listId, playerId) {
@@ -528,9 +1171,25 @@ async function addPlayerToListFromRow(playerId) {
     container.classList.add('hidden');
     container.innerHTML = '';
     loadListPlayers(currentListId);
+    showToast('Player added to list');
   } catch (e) {
     showError('lists-error', e.message || 'Request failed');
   }
+}
+
+function showToast(message) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+  el.style.opacity = '1';
+  el.style.transform = 'translateY(0)';
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(8px)';
+    setTimeout(() => el.classList.add('hidden'), 220);
+  }, 2000);
 }
 
 document.getElementById('add-by-name-results')?.addEventListener('click', async (e) => {
@@ -554,6 +1213,33 @@ document.getElementById('add-by-name-results')?.addEventListener('keydown', asyn
 function initLists() {
   if (getApiKey()) loadLists();
   initAddByNameSearch();
+
+  // View toggle buttons
+  const viewButtons = document.querySelectorAll('.list-view-btn');
+  viewButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      if (!view) return;
+      currentListView = view;
+      viewButtons.forEach((b) =>
+        b.classList.toggle('list-view-btn-active', b.dataset.view === view)
+      );
+      applyListView();
+    });
+  });
+}
+
+function applyListView() {
+  const grid = document.getElementById('list-players-grid');
+  const tableWrap = document.getElementById('list-players-table-wrap');
+  if (!grid || !tableWrap) return;
+  if (currentListView === 'table') {
+    grid.classList.add('hidden');
+    tableWrap.classList.remove('hidden');
+  } else {
+    grid.classList.remove('hidden');
+    tableWrap.classList.add('hidden');
+  }
 }
 
 // Hook up list-level delete button in detail header
@@ -567,6 +1253,17 @@ document.getElementById('list-delete-btn')?.addEventListener('click', (e) => {
 // ----- Init -----
 document.addEventListener('DOMContentLoaded', () => {
   initApiKeyBar();
+  initTabs();
   initPlayers();
   initLists();
+  if (getApiKey()) {
+    loadAnalytics();
+  }
+  document.getElementById('analytics-reload')?.addEventListener('click', () => {
+    loadAnalytics();
+  });
+  document.getElementById('analytics-youngest-sort')?.addEventListener('change', () => {
+    // Re-render using last-fetched data if present by re-calling loadAnalytics with same params
+    loadAnalytics();
+  });
 });

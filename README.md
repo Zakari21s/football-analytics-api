@@ -126,7 +126,8 @@ tests/
 
 - Base path: `/api/v1`
 - Authentication: `X-API-Key` header required for `/api/v1/*` (documented in the OpenAPI security scheme).
-- See `/docs` (Swagger UI) and `/redoc` for full API documentation. You can export the docs to PDF by printing from your browser.
+- **API documentation (PDF):** [docs/API_Documentation.pdf](docs/API_Documentation.pdf). Interactive docs at `/docs` and `/redoc`.
+- **Technical report (single PDF for submission):** [docs/Technical_Report.pdf](docs/Technical_Report.pdf) — full report plus GenAI declaration (Appendix A). To regenerate: `python scripts/export_report_pdf.py`.
 
 ## Dataset
 

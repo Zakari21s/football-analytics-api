@@ -33,3 +33,36 @@ class PlayerResponse(PlayerBase):
     total_assists: int | None = None
     total_cards: int | None = None
     total_clean_sheets: int | None = None
+
+
+class MarketValuePoint(BaseModel):
+    """Single point in a player's market value history."""
+
+    date: date
+    value: float
+
+
+class PlayerCareerSummary(BaseModel):
+    """Aggregated career summary for a player."""
+
+    seasons_played: int
+    previous_clubs: list[str]
+
+
+class PlayerDetailsResponse(BaseModel):
+    """Rich player details including market value history and career summary."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    player_id: int
+    player_name: str
+    position: str | None = None
+    main_position: str | None = None
+    player_image_url: str | None = None
+    current_club_name: str | None = None
+    citizenship: str | None = None
+    age: int | None = None
+
+    current_market_value: float | None = None
+    market_value_history: list[MarketValuePoint]
+    career: PlayerCareerSummary

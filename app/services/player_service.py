@@ -336,6 +336,121 @@ def get_player_by_id(db: Session, player_id: int) -> Player | None:
     return db.get(Player, player_id)
 
 
+def get_market_value_history(db: Session, player_id: int) -> list[dict]:
+    """Return ordered market value history for a player as list of {date, value}."""
+    rows = (
+        db.execute(
+            select(PlayerMarketValue.date_unix, PlayerMarketValue.value)
+            .where(PlayerMarketValue.player_id == player_id)
+            .order_by(PlayerMarketValue.date_unix.asc())
+        )
+        .all()
+    )
+    return [{"date": r.date_unix, "value": float(r.value)} for r in rows]
+
+
+def get_current_market_value(db: Session, player_id: int) -> float | None:
+    """Return latest market value for a player, or None if no history."""
+    sub_max = (
+        select(
+            func.max(PlayerMarketValue.date_unix).label("max_date"),
+        )
+        .where(PlayerMarketValue.player_id == player_id)
+        .scalar_subquery()
+    )
+    value = (
+        db.execute(
+            select(PlayerMarketValue.value).where(
+                PlayerMarketValue.player_id == player_id,
+                PlayerMarketValue.date_unix == sub_max,
+            )
+        )
+        .scalar()
+    )
+    return float(value) if value is not None else None
+
+
+def get_career_summary(db: Session, player_id: int) -> dict:
+    """Compute seasons played and previous clubs for a player."""
+    # Seasons played: distinct non-empty season_name values
+    season_rows = (
+        db.execute(
+            select(PlayerPerformance.season_name)
+            .where(PlayerPerformance.player_id == player_id)
+            .where(PlayerPerformance.season_name.isnot(None))
+            .where(PlayerPerformance.season_name != "")
+            .distinct()
+        )
+        .all()
+    )
+    seasons_played = len({r.season_name for r in season_rows if r.season_name})
+
+    # Previous clubs: distinct club names from performances, excluding current club
+    club_rows = (
+        db.execute(
+            select(Team.club_name)
+            .join(  # type: ignore[arg-type]
+                PlayerPerformance,
+                Team.club_id == PlayerPerformance.team_id,
+            )
+            .where(PlayerPerformance.player_id == player_id)
+            .where(Team.club_name.isnot(None))
+            .distinct()
+        )
+        .all()
+    )
+    club_names = {r.club_name for r in club_rows if r.club_name}
+
+    current_club_name: str | None = None
+    player = get_player_by_id(db, player_id)
+    if player and player.current_club_id is not None:
+        current_club_name = (
+            db.execute(select(Team.club_name).where(Team.club_id == player.current_club_id))
+            .scalar()
+        )
+    if current_club_name:
+        club_names.discard(current_club_name)
+
+    previous_clubs = sorted(club_names)
+
+    return {
+        "seasons_played": seasons_played,
+        "previous_clubs": previous_clubs,
+    }
+
+
+def get_player_details(db: Session, player_id: int) -> dict | None:
+    """Return rich player details dict or None if player not found."""
+    player = get_player_by_id(db, player_id)
+    if player is None:
+        return None
+
+    current_value = get_current_market_value(db, player_id)
+    history = get_market_value_history(db, player_id)
+    career = get_career_summary(db, player_id)
+
+    current_club_name: str | None = None
+    if player.current_club_id is not None:
+        current_club_name = (
+            db.execute(select(Team.club_name).where(Team.club_id == player.current_club_id))
+            .scalar()
+        )
+
+    return {
+        "player_id": player.player_id,
+        "player_name": player.player_name,
+        "position": player.position,
+        "main_position": player.main_position,
+        "player_image_url": player.player_image_url,
+        "current_club_name": current_club_name,
+        "citizenship": player.citizenship,
+        "age": _age_from_dob(player.date_of_birth),
+        "current_market_value": current_value,
+        "market_value_history": history,
+        "career": career,
+    }
+
+
 def player_to_response_dict(
     player: Player,
     db: Session | None = None,

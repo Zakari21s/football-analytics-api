@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.common import PaginatedResponse
+from app.schemas.common import PaginatedResponse, build_paginated_response
 from app.schemas.team import TeamResponse
 from app.services import team_service
 
@@ -26,12 +26,11 @@ def list_teams(
     limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
 ) -> PaginatedResponse[TeamResponse]:
     rows, total_count = team_service.get_teams(db, page=page, limit=limit)
-    total_pages = (total_count + limit - 1) // limit if total_count else 0
-    return PaginatedResponse(
+    return build_paginated_response(
         data=[TeamResponse.model_validate(t) for t in rows],
-        page=page,
-        total_pages=total_pages,
         total_count=total_count,
+        page=page,
+        limit=limit,
     )
 
 

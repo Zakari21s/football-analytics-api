@@ -3,6 +3,12 @@
 **Module**: COMP3011  
 **Project**: REST API + minimal frontend for football analytics and favourite player lists.
 
+**Links (for submission):**
+
+- **GitHub repository:** [*Add your public repo URL here, e.g. https://github.com/username/football-analytics-api*]
+- **API documentation:** [API documentation (PDF)](docs/API_Documentation.pdf) in repo; interactive docs at `/docs` (Swagger UI) and `/redoc` when the app is running (or at *live-url*/docs if deployed).
+- **Presentation slides:** [*Add link to your slides, e.g. Google Drive or OneDrive*]
+
 ---
 
 ## 1. Technology stack and justification
@@ -69,6 +75,17 @@ The dataset (players, teams, performances, transfers, market values) is read-onl
 
 **Analytics:** Three endpoints demonstrate use of the football dataset: (1) **top-scorers** – `SUM(goals)` from performances, optional filter by season/competition_id; (2) **top-market-values** – latest value per player, ordered by value desc; (3) **most-minutes-played** – `SUM(minutes_played)` per player, optional season filter. All return a list of player identifiers and the computed metric.
 
+**Advanced analytics:**
+
+- **Player details** – `GET /api/v1/players/{id}/details` returns current market value, full market value history, and a career summary. Current market value is the latest value per player from `player_market_value` (row with max date per player). Market value history is all rows for that player ordered by date. Career summary includes seasons played (distinct seasons from `player_performances`) and previous clubs (distinct team names from performances joined with teams, or from transfer history). One combined response keeps the frontend modal simple.
+- **New analytics endpoints** – **top-assists**: sum of `assists` per player from `player_performances`, with optional season and competition filters, returned in descending order. **Youngest-stars**: players under a configurable age limit, with aggregated `total_minutes` and `total_goals` from performances, sorted by minutes then goals. Both use the same `PlayerPerformance` (and player) data as the existing analytics endpoints.
+
+**Alternatives considered:**
+
+- **REST vs GraphQL:** REST was chosen for simplicity and strong tooling (OpenAPI, Swagger/ReDoc). GraphQL would suit flexible client queries but was not required for this scope.
+- **SQLite vs PostgreSQL:** SQLite for single-file, no separate server, and easy local use; for production a server DB such as PostgreSQL with migrations (e.g. Alembic) would be preferred.
+- **One details endpoint vs several:** A single combined details endpoint was chosen for the player modal. Splitting into e.g. `/market-value-history` and `/career` would allow finer-grained caching but was not needed for the current frontend.
+
 **Dataset pipeline:** Data is filtered to top-five leagues (GB1, ES1, IT1, L1, FR1) in a dedicated script that builds allowed club/player IDs and writes filtered CSVs to `web/filtered/`. A separate import script loads these in FK order (teams → players → performances, transfers, market values) with batched commits and streaming reads to avoid loading entire files into memory.
 
 ---
@@ -85,11 +102,17 @@ Tests are run with `pytest` or `pytest tests/ -v`; see README.
 
 ## 6. Deployment
 
-Deployment has **not** been performed for this submission. The project runs locally with SQLite. The README describes how to run the server (`uvicorn app.main:app`), create the DB, load data, and run tests. It also states that when deploying (e.g. PythonAnywhere or a Docker-based host), one should set `DATABASE_URL` and `API_KEY`, run the create-db and load-data scripts once, and expose the ASGI app `app.main:app`. The live API URL (and frontend URL if applicable) should be added to the README and this report when deployment is completed.
+Deployment has **not** been performed for this submission. The project runs locally with SQLite. The README describes how to run the server (`uvicorn app.main:app`), create the DB, load data, and run tests. When deployment is performed, replace this paragraph with one or two sentences: where the app is deployed (e.g. PythonAnywhere or Render), that `DATABASE_URL` and `API_KEY` are set, and that `create_db` and `load_data` were run once. Add the live API URL (and frontend URL if applicable).
 
 ---
 
-## 7. Limitations and future work
+## 7. Use of Generative AI
+
+Generative AI (e.g. Cursor/Claude) was used for design discussion, code generation, and report structure. All suggestions were verified and adapted; code and text were reviewed and edited as needed. Details and example excerpts are documented in the GenAI declaration (see Appendix A in this document, or `docs/GENAI_DECLARATION.md` in the repo). This section links the technical report to that declaration.
+
+---
+
+## 8. Limitations and future work
 
 - **Single API key:** Authentication is a single shared key; there is no per-user identity or rate limiting.
 - **SQLite:** Suitable for coursework and small scale; for production, a server DB (e.g. PostgreSQL) and proper migrations (e.g. Alembic) would be preferable.
@@ -98,4 +121,36 @@ Deployment has **not** been performed for this submission. The project runs loca
 
 ---
 
-*Report length: ~5 pages when rendered to PDF. Export from this Markdown (e.g. via Pandoc or print-to-PDF from a Markdown viewer) for submission.*
+## Appendix A: GenAI Declaration
+
+*The following is the Generative AI tools declaration, included in this report for the single-PDF submission.*
+
+### 1. Tools used and purpose
+
+| Tool / platform | Purpose |
+|-----------------|--------|
+| **Cursor (AI-assisted editor)** | Design and architecture discussion; code generation for FastAPI routers, Pydantic schemas, SQLAlchemy models, and service layer functions; refactoring (e.g. moving from mounted sub-app to single app with router dependencies). |
+| **Claude / Codex (via Cursor)** | Writing and editing Python (app code, scripts, tests); drafting README and API descriptions; suggesting test cases and validation behaviour (e.g. 422 for empty name, 404 for invalid player_id). |
+| **Other** | None. |
+
+### 2. Sample conversation logs (appendix)
+
+**Excerpt 1 – API key dependency and router setup**  
+I asked how to require X-API-Key on all `/api/v1` routes. The suggestion was to add a dependency (e.g. `require_api_key`) that reads the header and returns 401 if missing or invalid, and to attach it to the API v1 router via `APIRouter(..., dependencies=[Depends(require_api_key)]). I applied this so every route under `/api/v1` is protected without repeating the check in each handler.
+
+**Excerpt 2 – Player details endpoint design**  
+I asked how to return current market value, full market value history, and a career summary from one endpoint. The suggestion was a single `GET /players/{id}/details` response with: current value as the latest row per player in `player_market_value` (max date); history as all rows for that player ordered by date; career with seasons played (distinct from performances) and previous clubs (distinct team names from performances/teams or transfers). I implemented the service and Pydantic response schema (e.g. `PlayerDetailsResponse` with `market_value_history`, `career`) as suggested and wired the router.
+
+**Excerpt 3 – Top assists and youngest stars queries**  
+I requested analytics endpoints for top assists (sum of assists per player, optional season/competition filters) and youngest stars (players under an age limit, aggregated minutes and goals, sorted by minutes then goals). I was given SQLAlchemy query patterns (group by player, join performances/players, filter by age from date_of_birth). I implemented the routes and response schemas (e.g. `TopAssistsResponse`, `YoungestStarResponse`) and added the same optional query parameters as the existing analytics endpoints.
+
+**Excerpt 4 – Test cases for new endpoints**  
+I asked for tests for the new player details and analytics endpoints without changing the test DB. The suggestion was: (1) test_player_details_ok – GET players?limit=1, take first id, GET details, assert 200 and presence of player_id, player_name, current_market_value, market_value_history, career (seasons_played, previous_clubs); (2) test_player_details_404 for id 999999999; (3) test_top_assists and test_youngest_stars – GET with limit, assert 200 and list shape, and if non-empty assert first item keys and optionally descending order. I added these to test_players.py and test_analytics.py and ran pytest until green.
+
+### 3. Reflection on "creative, high-level" use
+
+I used GenAI for both high-level design (e.g. REST structure, endpoint design, analytics ideas) and implementation (code, tests, documentation). I checked and adapted all suggestions—for example around security (API key handling), error handling (401/404/422), and validation (request/response schemas)—and ran tests to confirm behaviour. I understand and can explain all code and design choices in this submission.
+
+---
+
+*Report length: ~5 pages when rendered to PDF (main report) plus appendix. Export this Markdown to a single PDF (e.g. via Pandoc or print-to-PDF) for Minerva submission.*
