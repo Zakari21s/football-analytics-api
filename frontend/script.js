@@ -71,8 +71,8 @@ async function loadPlayers() {
     document.getElementById('api-key-bar')?.classList.remove('hidden');
     return;
   }
-  const sortBy = document.getElementById('players-sort')?.value || 'name';
-  const order = document.getElementById('players-order')?.value || 'asc';
+  const sortBy = document.getElementById('players-sort')?.value || 'market_value';
+  const order = document.getElementById('players-order')?.value || 'desc';
   const competitionId = document.getElementById('players-competition')?.value || '';
   const season = document.getElementById('players-season')?.value || '';
   const search = document.getElementById('players-search')?.value || '';
@@ -102,8 +102,11 @@ async function loadPlayers() {
     const data = await res.json();
     playersTotalPages = data.total_pages || 1;
     renderPlayersTable(data.data || []);
-    document.getElementById('players-page-info').textContent =
-      `Page ${data.page} of ${playersTotalPages} (${data.total_count} total)`;
+    const pageText = `Page ${data.page} of ${playersTotalPages} (${data.total_count} total)`;
+    const prevDisabled = data.page <= 1;
+    const nextDisabled = data.page >= playersTotalPages;
+    const pageInfoEl = document.getElementById('players-page-info-bottom');
+    if (pageInfoEl) pageInfoEl.textContent = pageText;
     const ctxEl = document.getElementById('players-filter-context');
     if (ctxEl) {
       const parts = [];
@@ -115,10 +118,10 @@ async function loadPlayers() {
       ctxEl.textContent = parts.length ? `Stats for ${parts.join(', ')}` : '';
       ctxEl.classList.toggle('hidden', !parts.length);
     }
-    const prevBtn = document.getElementById('players-prev');
-    const nextBtn = document.getElementById('players-next');
-    if (prevBtn) prevBtn.disabled = data.page <= 1;
-    if (nextBtn) nextBtn.disabled = data.page >= playersTotalPages;
+    const prevBtn = document.getElementById('players-prev-bottom');
+    const nextBtn = document.getElementById('players-next-bottom');
+    if (prevBtn) prevBtn.disabled = prevDisabled;
+    if (nextBtn) nextBtn.disabled = nextDisabled;
     showEl('players-table-wrap', true);
   } catch (e) {
     showError('players-error', e.message || 'Request failed');
@@ -134,8 +137,8 @@ function renderPlayersTable(rows) {
     .map(
       (p) =>
         `<tr data-player-id="${p.player_id || ''}" class="player-row">
-          <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
-          <td>${escapeHtml(p.player_name || '')}</td>
+          <td>${renderPlayerImageCell(p.player_image_url, stripIdFromName(p.player_name))}</td>
+          <td>${escapeHtml(stripIdFromName(p.player_name) || '')}</td>
           <td>${p.age ?? '—'}</td>
           <td>${escapeHtml(
             formatPositionLabel(p.position || p.main_position)
@@ -147,7 +150,7 @@ function renderPlayersTable(rows) {
           <td>${p.total_assists ?? '—'}</td>
           <td>${p.total_cards ?? '—'}</td>
           <td>${p.total_clean_sheets ?? '—'}</td>
-          <td>${escapeHtml(p.current_club_name || '—')}</td>
+          <td>${renderClubCell(p.current_club_logo_url, p.current_club_name)}</td>
           <td><button type="button" class="btn-add-to-list" data-player-id="${p.player_id}">Add</button></td>
         </tr>`
     )
@@ -186,6 +189,20 @@ function renderPlayerImageCell(url, name) {
     return `<div class="player-avatar placeholder">${escapeHtml(initials || '?')}</div>`;
   }
   return `<img src="${safeUrl}" alt="${escapeHtml(name || '')}" class="player-avatar">`;
+}
+
+/** Render current club with optional logo (logo_url from team_details). */
+function renderClubCell(logoUrl, clubName) {
+  const name = escapeHtml(stripIdFromName(clubName) || '—');
+  if (!logoUrl || !String(logoUrl).trim()) return name;
+  const safeUrl = String(logoUrl).replace(/[<>"']/g, '');
+  return `<span class="club-cell"><img src="${safeUrl}" alt="" class="club-logo" width="20" height="20" referrerpolicy="no-referrer" loading="lazy">${name}</span>`;
+}
+
+/** Strip trailing " (number)" from names so IDs are not shown (e.g. "Bologna FC 1909 (1025)" → "Bologna FC 1909"). */
+function stripIdFromName(s) {
+  if (!s || typeof s !== 'string') return s;
+  return s.replace(/\s*\(\d+\)\s*$/, '').trim();
 }
 
 function escapeHtml(s) {
@@ -303,8 +320,8 @@ function openListPickerModal(playerId) {
   const empty = document.getElementById('list-picker-empty');
   if (!modal || !body || !empty) return;
 
-  // Read available lists from existing sidebar DOM
-  const listItems = Array.from(document.querySelectorAll('#lists-list li'));
+  // Read available lists from existing cards DOM
+  const listItems = Array.from(document.querySelectorAll('#lists-list .fav-list-card'));
   if (!listItems.length) {
     // No lists yet: guide user to create one
     closeListPickerModal();
@@ -318,10 +335,11 @@ function openListPickerModal(playerId) {
 
   body.innerHTML = listItems
     .map(
-      (li) =>
-        `<li>
-          <button type="button" class="list-picker-option" data-list-id="${li.dataset.listId}">
-            ${escapeHtml(li.dataset.listName || '')}
+      (card) =>
+        `<li class="list-picker-item">
+          <button type="button" class="list-picker-option" data-list-id="${card.dataset.listId}">
+            <span class="list-picker-option-name">${escapeHtml(card.dataset.listName || '')}</span>
+            <span class="list-picker-option-action" aria-hidden="true">Add to list</span>
           </button>
         </li>`
     )
@@ -337,13 +355,13 @@ function openListPickerModal(playerId) {
       const listId = parseInt(btn.dataset.listId || '0', 10);
       if (!listId || !playerId) return;
 
-      // Update currentListId and visual selection in sidebar
+      // Update currentListId and visual selection in cards
       currentListId = listId;
-      const sidebarLis = document.querySelectorAll('#lists-list li');
-      sidebarLis.forEach((li) => {
-        li.classList.toggle('selected', parseInt(li.dataset.listId || '0', 10) === listId);
+      const cards = document.querySelectorAll('#lists-list .fav-list-card');
+      cards.forEach((card) => {
+        card.classList.toggle('selected', parseInt(card.dataset.listId || '0', 10) === listId);
       });
-      const name = btn.textContent || '';
+      const name = btn.dataset.listName || btn.querySelector('.list-picker-option-name')?.textContent || '';
       const nameEl = document.getElementById('list-detail-name');
       if (nameEl) nameEl.textContent = name.trim();
       document.getElementById('list-detail')?.classList.remove('hidden');
@@ -363,8 +381,9 @@ function showPlayerDetailsError(message) {
 
 function renderPlayerDetails(details) {
   if (!details) return;
-  const name = details.player_name || 'Unknown player';
-  const club = details.current_club_name || '—';
+  const name = stripIdFromName(details.player_name) || 'Unknown player';
+  const clubName = stripIdFromName(details.current_club_name) || '—';
+  const clubLogoUrl = details.current_club_logo_url || null;
   const positionRaw = details.position || details.main_position || '';
   const position = formatPositionLabel(positionRaw);
   const age = details.age ?? '—';
@@ -390,7 +409,7 @@ function renderPlayerDetails(details) {
   }
 
   const clubEl = document.getElementById('player-details-club');
-  if (clubEl) clubEl.textContent = club;
+  if (clubEl) clubEl.innerHTML = renderClubCell(clubLogoUrl, clubName);
 
   const posEl = document.getElementById('player-details-position');
   if (posEl) posEl.textContent = position;
@@ -401,6 +420,9 @@ function renderPlayerDetails(details) {
   const natEl = document.getElementById('player-details-nationality');
   if (natEl) natEl.textContent = nationality;
 
+  const heightEl = document.getElementById('player-details-height');
+  if (heightEl) heightEl.textContent = (details.height != null && details.height > 0) ? details.height + ' cm' : '—';
+
   const valueEl = document.getElementById('player-details-value');
   if (valueEl) valueEl.textContent = value;
 
@@ -408,14 +430,34 @@ function renderPlayerDetails(details) {
   const seasons = career.seasons_played ?? 0;
   const clubs = Array.isArray(career.previous_clubs) ? career.previous_clubs : [];
   const careerTextEl = document.getElementById('player-details-career-text');
+  const careerClubsEl = document.getElementById('player-details-career-clubs');
   if (careerTextEl) {
     if (!seasons && !clubs.length) {
       careerTextEl.textContent = 'No career summary available.';
+      if (careerClubsEl) careerClubsEl.innerHTML = '';
     } else {
-      const bits = [];
-      if (seasons) bits.push(`${seasons} season${seasons === 1 ? '' : 's'} recorded`);
-      if (clubs.length) bits.push(`previously at ${clubs.join(', ')}`);
-      careerTextEl.textContent = bits.join(' • ');
+      if (seasons) {
+        careerTextEl.textContent = `${seasons} season${seasons === 1 ? '' : 's'} recorded.`;
+      } else {
+        careerTextEl.textContent = '';
+      }
+      if (careerClubsEl) {
+        if (clubs.length) {
+          careerClubsEl.innerHTML =
+            '<span class="career-clubs-label">Previously at </span>' +
+            clubs
+              .map((c) => {
+                const name = c && typeof c === 'object' && 'club_name' in c ? c.club_name : String(c);
+                const logoUrl = c && typeof c === 'object' && 'logo_url' in c ? c.logo_url : null;
+                return renderClubCell(logoUrl, name);
+              })
+              .join('');
+          careerClubsEl.classList.remove('hidden');
+        } else {
+          careerClubsEl.innerHTML = '';
+          careerClubsEl.classList.add('hidden');
+        }
+      }
     }
   }
 
@@ -430,6 +472,15 @@ function renderPlayerDetails(details) {
   const emptyEl = document.getElementById('player-details-chart-empty');
   if (emptyEl) emptyEl.classList.add('hidden');
   renderMarketValueChart(history);
+}
+
+/** Short date for chart x-axis (e.g. "Jan '24"). */
+function formatChartDate(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const y = d.getFullYear();
+  const yy = String(y).slice(-2);
+  return months[d.getMonth()] + " '" + yy;
 }
 
 function renderMarketValueChart(points) {
@@ -458,7 +509,7 @@ function renderMarketValueChart(points) {
   const paddingLeft = 30;
   const paddingRight = 10;
   const paddingTop = 10;
-  const paddingBottom = 20;
+  const paddingBottom = 24;
 
   const xSpan = maxDate - minDate || 1;
   const ySpan = maxValue - minValue || 1;
@@ -478,8 +529,28 @@ function renderMarketValueChart(points) {
     })
     .join(' ');
 
-  const lastPoint = parsed[parsed.length - 1];
-  const lastLabel = `${lastPoint.date.getFullYear()}`;
+  // Choose which dates to show on x-axis: all if ≤6, else first + last + evenly spaced in between
+  const n = parsed.length;
+  let labelIndices;
+  if (n <= 6) {
+    labelIndices = parsed.map((_, i) => i);
+  } else {
+    const first = 0;
+    const last = n - 1;
+    const mid1 = Math.floor(n * 0.25);
+    const mid2 = Math.floor(n * 0.5);
+    const mid3 = Math.floor(n * 0.75);
+    labelIndices = [first, mid1, mid2, mid3, last];
+    labelIndices = [...new Set(labelIndices)].sort((a, b) => a - b);
+  }
+
+  const xAxisLabels = labelIndices.map((i) => {
+    const p = parsed[i];
+    return {
+      x: xScale(p.date.getTime()),
+      text: formatChartDate(p.date),
+    };
+  });
 
   container.innerHTML = `
     <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -501,9 +572,12 @@ function renderMarketValueChart(points) {
           `;
         })
         .join('')}
-      <text class="chart-label" x="${xScale(
-        lastPoint.date.getTime()
-      )}" y="${height - 4}" text-anchor="end">${lastLabel}</text>
+      ${xAxisLabels
+        .map(
+          (l) =>
+            `<text class="chart-label chart-axis-label" x="${l.x}" y="${height - 6}" text-anchor="middle">${l.text}</text>`
+        )
+        .join('')}
     </svg>
   `;
 }
@@ -527,7 +601,7 @@ async function loadCompetitions() {
           .map(
             (c) =>
               `<option value="${escapeHtml(c.competition_id)}">${escapeHtml(
-                c.competition_name || c.competition_id
+                stripIdFromName(c.competition_name) || c.competition_id
               )}</option>`
           )
           .join('');
@@ -637,7 +711,7 @@ function renderAnalyticsTopScorers(rows) {
       (r, idx) =>
         `<tr>
           <td>${idx + 1}</td>
-          <td>${escapeHtml(r.player_name)}</td>
+          <td>${escapeHtml(stripIdFromName(r.player_name))}</td>
           <td>${formatNumber(r.total_goals)}</td>
         </tr>`
     )
@@ -656,7 +730,7 @@ function renderAnalyticsTopAssists(rows) {
       (r, idx) =>
         `<tr>
           <td>${idx + 1}</td>
-          <td>${escapeHtml(r.player_name)}</td>
+          <td>${escapeHtml(stripIdFromName(r.player_name))}</td>
           <td>${r.total_assists}</td>
         </tr>`
     )
@@ -675,7 +749,7 @@ function renderAnalyticsTopValues(rows) {
       (r, idx) =>
         `<tr>
           <td>${idx + 1}</td>
-          <td>${escapeHtml(r.player_name)}</td>
+          <td>${escapeHtml(stripIdFromName(r.player_name))}</td>
           <td>${formatNumber(r.market_value)}</td>
         </tr>`
     )
@@ -694,7 +768,7 @@ function renderAnalyticsMostMinutes(rows) {
       (r, idx) =>
         `<tr>
           <td>${idx + 1}</td>
-          <td>${escapeHtml(r.player_name)}</td>
+          <td>${escapeHtml(stripIdFromName(r.player_name))}</td>
           <td>${formatNumber(r.total_minutes)}</td>
         </tr>`
     )
@@ -732,7 +806,7 @@ function renderAnalyticsYoungestStars(rows, sortKey) {
       (r, idx) =>
         `<tr>
           <td>${idx + 1}</td>
-          <td>${escapeHtml(r.player_name)}</td>
+          <td>${escapeHtml(stripIdFromName(r.player_name))}</td>
           <td>${r.age ?? '—'}</td>
           <td>${formatNumber(r.total_minutes)}</td>
           <td>${formatNumber(r.total_goals)}</td>
@@ -766,13 +840,13 @@ function initPlayers() {
       }, term ? 250 : 0);
     });
   }
-  document.getElementById('players-prev')?.addEventListener('click', () => {
+  document.getElementById('players-prev-bottom')?.addEventListener('click', () => {
     if (playersPage > 1) {
       playersPage--;
       loadPlayers();
     }
   });
-  document.getElementById('players-next')?.addEventListener('click', () => {
+  document.getElementById('players-next-bottom')?.addEventListener('click', () => {
     if (playersPage < playersTotalPages) {
       playersPage++;
       loadPlayers();
@@ -865,28 +939,29 @@ async function loadLists() {
 }
 
 function renderLists(lists) {
-  const ul = document.getElementById('lists-list');
-  if (!ul) return;
-  ul.innerHTML = (lists || [])
+  const container = document.getElementById('lists-list');
+  if (!container) return;
+  container.innerHTML = (lists || [])
     .map(
       (l) =>
-        `<li data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}">
-          <span>${escapeHtml(l.name)}</span>
-          <span class="list-actions">
-            <button type="button" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}" class="btn-delete">Delete</button>
-          </span>
-        </li>`
+        `<div class="fav-list-card" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}" role="listitem">
+          <div class="fav-list-card-content">
+            <span class="fav-list-card-name">${escapeHtml(l.name)}</span>
+            <span class="fav-list-card-hint">Click to open</span>
+          </div>
+          <button type="button" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}" class="fav-list-card-delete btn-delete" aria-label="Delete list">Delete</button>
+        </div>`
     )
     .join('');
-  ul.querySelectorAll('li').forEach((li) => {
-    li.addEventListener('click', () => {
-      const id = parseInt(li.dataset.listId, 10);
+  container.querySelectorAll('.fav-list-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.fav-list-card-delete')) return;
+      const id = parseInt(card.dataset.listId, 10);
       if (!id) return;
       currentListId = id;
-      // highlight selection
-      ul.querySelectorAll('li').forEach((other) => other.classList.remove('selected'));
-      li.classList.add('selected');
-      const name = li.dataset.listName || '';
+      container.querySelectorAll('.fav-list-card').forEach((other) => other.classList.remove('selected'));
+      card.classList.add('selected');
+      const name = card.dataset.listName || '';
       document.getElementById('list-detail-name').textContent = name;
       document.getElementById('list-detail').classList.remove('hidden');
       const deleteBtn = document.getElementById('list-delete-btn');
@@ -897,7 +972,7 @@ function renderLists(lists) {
       loadListPlayers(currentListId);
     });
   });
-  ul.querySelectorAll('.btn-delete').forEach((btn) => {
+  container.querySelectorAll('.fav-list-card-delete').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       deleteList(parseInt(btn.dataset.listId, 10));
@@ -979,11 +1054,11 @@ async function loadListPlayers(listId) {
       return `
         <div class="list-player-card">
           <div class="list-player-avatar">
-            ${renderPlayerImageCell(p.player_image_url, p.player_name)}
+            ${renderPlayerImageCell(p.player_image_url, stripIdFromName(p.player_name))}
           </div>
           <div class="list-player-main">
-            <div class="list-player-name">${escapeHtml(p.player_name || '')}</div>
-            <div class="list-player-meta">${escapeHtml(meta || (p.current_club_name || ''))}</div>
+            <div class="list-player-name">${escapeHtml(stripIdFromName(p.player_name) || '')}</div>
+            <div class="list-player-meta">${(p.current_club_name || p.current_club_logo_url) ? renderClubCell(p.current_club_logo_url, p.current_club_name) : escapeHtml(meta || '')}</div>
             <div class="list-player-value">Value: ${value}</div>
           </div>
           <div class="list-player-actions">
@@ -1004,8 +1079,8 @@ async function loadListPlayers(listId) {
     .map(
       (p) =>
         `<tr>
-          <td>${renderPlayerImageCell(p.player_image_url, p.player_name)}</td>
-          <td>${escapeHtml(p.player_name || '')}</td>
+          <td>${renderPlayerImageCell(p.player_image_url, stripIdFromName(p.player_name))}</td>
+          <td>${escapeHtml(stripIdFromName(p.player_name) || '')}</td>
           <td>${p.age ?? '—'}</td>
           <td>${escapeHtml(formatPositionLabel(p.position || p.main_position))}</td>
           <td>${escapeHtml(p.foot || '—')}</td>
@@ -1015,7 +1090,7 @@ async function loadListPlayers(listId) {
           <td>${p.total_assists ?? '—'}</td>
           <td>${p.total_cards ?? '—'}</td>
           <td>${p.total_clean_sheets ?? '—'}</td>
-          <td>${escapeHtml(p.current_club_name || '—')}</td>
+          <td>${renderClubCell(p.current_club_logo_url, p.current_club_name)}</td>
           <td><button type="button" data-player-id="${p.player_id}" class="btn-remove">Remove</button></td>
         </tr>`
     )
@@ -1071,7 +1146,7 @@ function renderAddByNameResults(players) {
       .map(
         (p) =>
           `<li class="add-by-name-row" data-player-id="${p.player_id}" role="button" tabindex="0">
-            <span>${escapeHtml(p.player_name)} <span class="muted">(${p.player_id})</span></span>
+            <span>${escapeHtml(stripIdFromName(p.player_name))}</span>
             <span class="add-by-name-add-hint">Add to list</span>
           </li>`
       )

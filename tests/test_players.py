@@ -108,6 +108,9 @@ def test_player_details_ok(client: TestClient, auth_headers: dict) -> None:
     assert "seasons_played" in career
     assert "previous_clubs" in career
     assert isinstance(career["previous_clubs"], list)
+    for entry in career["previous_clubs"]:
+        assert "club_name" in entry
+        assert isinstance(entry["club_name"], str)
 
 
 def test_player_details_404(client: TestClient, auth_headers: dict) -> None:

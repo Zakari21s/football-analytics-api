@@ -55,6 +55,7 @@ class Team(Base):
 
     club_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     club_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     country_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     competition_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     competition_name: Mapped[str | None] = mapped_column(String(128), nullable=True)

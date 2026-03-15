@@ -48,7 +48,7 @@
               <option value="age">Age</option>
               <option value="position">Position</option>
               <option value="foot">Foot</option>
-              <option value="market_value">Market value</option>
+              <option value="market_value" selected>Market value</option>
               <option value="minutes_played">Minutes played</option>
               <option value="goals">Goals</option>
               <option value="assists">Assists</option>
@@ -58,15 +58,10 @@
             <label>Order</label>
             <select id="players-order">
               <option value="asc">Asc</option>
-              <option value="desc">Desc</option>
+              <option value="desc" selected>Desc</option>
             </select>
             <button type="button" id="players-load">Load</button>
           </div>
-          <span class="pagination">
-            <button type="button" id="players-prev">Prev</button>
-            <span id="players-page-info">Page 1</span>
-            <button type="button" id="players-next">Next</button>
-          </span>
         </div>
       </div>
       <p id="players-filter-context" class="players-filter-context muted hidden"></p>
@@ -93,6 +88,11 @@
           </thead>
           <tbody id="players-tbody"></tbody>
         </table>
+        <div class="pagination pagination-bottom">
+          <button type="button" id="players-prev-bottom">Prev</button>
+          <span id="players-page-info-bottom">Page 1</span>
+          <button type="button" id="players-next-bottom">Next</button>
+        </div>
       </div>
     </section>
 
@@ -102,10 +102,10 @@
         <div class="fav-panel card">
           <div class="fav-panel-header">
             <div class="fav-create-inline">
-              <h2 class="fav-sidebar-title">Create New List</h2>
+              <h2 class="fav-section-title">Create new list</h2>
               <div class="create-list">
-                <input type="text" id="list-name-input" placeholder="List name">
-                <button type="button" id="list-create">Create</button>
+                <input type="text" id="list-name-input" class="create-list-input" placeholder="List name" aria-label="List name">
+                <button type="button" id="list-create" class="create-list-btn">Create</button>
               </div>
             </div>
             <div class="fav-panel-status">
@@ -114,37 +114,34 @@
             </div>
           </div>
 
-          <h2 class="fav-sidebar-title fav-sidebar-title-secondary">Your lists</h2>
-          <ul id="lists-list" class="lists-list fav-lists-vertical"></ul>
+          <h2 class="fav-section-title fav-section-title-secondary">Your lists</h2>
+          <p class="fav-lists-hint">Click a list to open it and manage players.</p>
+          <div id="lists-list" class="fav-lists-cards" role="list" aria-label="Your lists"></div>
 
           <div id="list-detail" class="list-detail hidden fav-dropdown">
             <div class="list-detail-header">
               <div class="list-detail-title">
-                <h2 id="list-detail-name"></h2>
-                <p id="list-detail-meta" class="muted"></p>
+                <h2 id="list-detail-name" class="list-detail-name"></h2>
+                <p id="list-detail-meta" class="list-detail-meta"></p>
               </div>
               <div class="list-detail-actions">
-                <div class="list-view-toggle">
-                  <button type="button" class="list-view-btn list-view-btn-active" data-view="cards">
-                    Cards
-                  </button>
-                  <button type="button" class="list-view-btn" data-view="table">
-                    Table
-                  </button>
+                <div class="list-view-toggle" role="group" aria-label="View mode">
+                  <button type="button" class="list-view-btn list-view-btn-active" data-view="cards">Cards</button>
+                  <button type="button" class="list-view-btn" data-view="table">Table</button>
                 </div>
-                <button type="button" id="list-delete-btn" class="btn-danger hidden">Delete list</button>
+                <button type="button" id="list-delete-btn" class="btn-danger btn-delete-list hidden">Delete list</button>
               </div>
             </div>
 
             <div id="list-empty-state" class="list-empty-state hidden">
-              <div class="list-empty-icon">⭐</div>
-              <h3>No players in this list yet</h3>
-              <p>Search for players below and add them to start building this list.</p>
+              <div class="list-empty-icon" aria-hidden="true">⭐</div>
+              <h3 class="list-empty-title">No players in this list yet</h3>
+              <p class="list-empty-text">Search for players below and add them to start building this list.</p>
             </div>
 
             <div class="add-player-by-name">
-              <p>Add player by name (type to search, click a row to add):</p>
-              <input type="text" id="add-player-name-input" placeholder="Search players…" autocomplete="off">
+              <label for="add-player-name-input" class="add-player-label">Add player by name (type to search, click to add)</label>
+              <input type="text" id="add-player-name-input" class="add-player-input" placeholder="Search players…" autocomplete="off" aria-label="Search players to add">
               <div id="add-by-name-results" class="add-by-name-results hidden"></div>
             </div>
 
@@ -309,6 +306,10 @@
                 <dd id="player-details-nationality">—</dd>
               </div>
               <div>
+                <dt>Height</dt>
+                <dd id="player-details-height">—</dd>
+              </div>
+              <div>
                 <dt>Current market value</dt>
                 <dd id="player-details-value">—</dd>
               </div>
@@ -317,6 +318,7 @@
           <section class="modal-section">
             <h3>Career summary</h3>
             <p id="player-details-career-text" class="muted">No career summary available.</p>
+            <div id="player-details-career-clubs" class="career-clubs"></div>
           </section>
         </div>
         <section class="modal-section">
@@ -331,12 +333,14 @@
   <!-- Favourite list picker modal -->
   <div id="list-picker-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true">
     <div class="modal-backdrop"></div>
-    <div class="modal-content" role="document">
+    <div class="modal-content list-picker-content" role="document">
       <button type="button" class="modal-close" id="list-picker-close" aria-label="Close favourite list picker">×</button>
-      <h2>Choose a favourite list</h2>
-      <p class="muted">Pick a list to add this player to. Or create a new list in the Favourite Lists tab.</p>
-      <div id="list-picker-empty" class="muted hidden">You have no favourite lists yet. Create one first.</div>
-      <ul id="list-picker-body" class="lists-list"></ul>
+      <div class="list-picker-header">
+        <h2 class="list-picker-title">Choose a favourite list</h2>
+        <p class="list-picker-subtitle">Pick a list to add this player to. You can create a new list in the Favourite Lists tab.</p>
+      </div>
+      <div id="list-picker-empty" class="list-picker-empty hidden">You have no favourite lists yet. Create one first.</div>
+      <ul id="list-picker-body" class="list-picker-list" aria-label="Favourite lists"></ul>
     </div>
   </div>
 

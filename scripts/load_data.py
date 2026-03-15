@@ -92,6 +92,7 @@ def load_teams(session: Session) -> set[int]:
                 Team(
                     club_id=cid,
                     club_name=_str_trim(row.get("club_name")) or f"Club {cid}",
+                    logo_url=_str_trim(row.get("logo_url"), 512),
                     country_name=_str_trim(row.get("country_name"), 128),
                     competition_id=_str_trim(row.get("competition_id"), 32),
                     competition_name=_str_trim(row.get("competition_name"), 128),

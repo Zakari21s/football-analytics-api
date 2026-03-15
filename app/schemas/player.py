@@ -19,6 +19,7 @@ class PlayerBase(BaseModel):
     foot: str | None = None
     player_image_url: str | None = None
     current_club_name: str | None = None
+    current_club_logo_url: str | None = None
 
 
 class PlayerResponse(PlayerBase):
@@ -42,11 +43,18 @@ class MarketValuePoint(BaseModel):
     value: float
 
 
+class PreviousClubEntry(BaseModel):
+    """A previous club in a player's career (name + optional logo)."""
+
+    club_name: str
+    logo_url: str | None = None
+
+
 class PlayerCareerSummary(BaseModel):
     """Aggregated career summary for a player."""
 
     seasons_played: int
-    previous_clubs: list[str]
+    previous_clubs: list[PreviousClubEntry]
 
 
 class PlayerDetailsResponse(BaseModel):
@@ -60,8 +68,10 @@ class PlayerDetailsResponse(BaseModel):
     main_position: str | None = None
     player_image_url: str | None = None
     current_club_name: str | None = None
+    current_club_logo_url: str | None = None
     citizenship: str | None = None
     age: int | None = None
+    height: float | None = None
 
     current_market_value: float | None = None
     market_value_history: list[MarketValuePoint]

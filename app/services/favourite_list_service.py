@@ -36,6 +36,7 @@ def _player_to_response_dict(
     total_assists: int | None = None,
     total_cards: int | None = None,
     current_club_name: str | None = None,
+    current_club_logo_url: str | None = None,
 ) -> dict:
     """Build player response dict (same shape as PlayerResponse)."""
     return {
@@ -50,6 +51,7 @@ def _player_to_response_dict(
         "foot": player.foot,
         "player_image_url": player.player_image_url,
         "current_club_name": current_club_name,
+        "current_club_logo_url": current_club_logo_url,
         "age": _age_from_dob(player.date_of_birth),
         "market_value": latest_value,
         "minutes_played": total_minutes,
@@ -266,9 +268,15 @@ def get_players_in_list(
             r.player_id: {"g": float(r.g), "a": int(r.a), "c": int(r.c)} for r in stats_rows
         }
     club_ids = {p.current_club_id for p in rows if p.current_club_id is not None}
+    current_club_logo_url_map: dict[int, str] = {}
     if club_ids:
-        club_rows = db.execute(select(Team.club_id, Team.club_name).where(Team.club_id.in_(club_ids))).all()
-        current_club_name_map = {r.club_id: r.club_name for r in club_rows}
+        club_rows = db.execute(
+            select(Team.club_id, Team.club_name, Team.logo_url).where(Team.club_id.in_(club_ids))
+        ).all()
+        for r in club_rows:
+            current_club_name_map[r.club_id] = r.club_name
+            if r.logo_url:
+                current_club_logo_url_map[r.club_id] = r.logo_url
 
     result: list[dict] = []
     for p in rows:
@@ -282,6 +290,7 @@ def get_players_in_list(
                 total_assists=stats.get("a"),
                 total_cards=stats.get("c"),
                 current_club_name=current_club_name_map.get(p.current_club_id or 0),
+                current_club_logo_url=current_club_logo_url_map.get(p.current_club_id or 0),
             )
         )
     return result

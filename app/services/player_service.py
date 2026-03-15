@@ -58,6 +58,7 @@ def _player_to_response(
     total_cards: int | None = None,
     total_clean_sheets: int | None = None,
     current_club_name: str | None = None,
+    current_club_logo_url: str | None = None,
 ) -> dict:
     """Build dict for PlayerResponse with optional computed fields."""
     return {
@@ -72,6 +73,7 @@ def _player_to_response(
         "foot": player.foot,
         "player_image_url": player.player_image_url,
         "current_club_name": current_club_name,
+        "current_club_logo_url": current_club_logo_url,
         "age": _age_from_dob(player.date_of_birth),
         "market_value": latest_value,
         "minutes_played": total_minutes,
@@ -86,8 +88,8 @@ def get_players(
     db: Session,
     page: int = 1,
     limit: int = DEFAULT_LIMIT,
-    sort_by: SortBy = "name",
-    order: Order = "asc",
+    sort_by: SortBy = "market_value",
+    order: Order = "desc",
     search: str | None = None,
     competition_id: str | None = None,
     season: str | None = None,
@@ -306,12 +308,18 @@ def get_players(
             for r in stats_rows
         }
 
-    # current club name
+    # current club name and logo
     current_club_name_map: dict[int, str] = {}
+    current_club_logo_url_map: dict[int, str] = {}
     club_ids = {p.current_club_id for p in rows if p.current_club_id is not None}
     if club_ids:
-        club_rows = db.execute(select(Team.club_id, Team.club_name).where(Team.club_id.in_(club_ids))).all()
-        current_club_name_map = {r.club_id: r.club_name for r in club_rows}
+        club_rows = db.execute(
+            select(Team.club_id, Team.club_name, Team.logo_url).where(Team.club_id.in_(club_ids))
+        ).all()
+        for r in club_rows:
+            current_club_name_map[r.club_id] = r.club_name
+            if r.logo_url:
+                current_club_logo_url_map[r.club_id] = r.logo_url
 
     data = []
     for p in rows:
@@ -326,6 +334,7 @@ def get_players(
                 total_cards=stats.get("c"),
                 total_clean_sheets=stats.get("cs"),
                 current_club_name=current_club_name_map.get(p.current_club_id or 0),
+                current_club_logo_url=current_club_logo_url_map.get(p.current_club_id or 0),
             )
         )
     return data, total_count
@@ -385,10 +394,10 @@ def get_career_summary(db: Session, player_id: int) -> dict:
     )
     seasons_played = len({r.season_name for r in season_rows if r.season_name})
 
-    # Previous clubs: distinct club names from performances, excluding current club
+    # Previous clubs: distinct club_id, club_name, logo_url from performances, excluding current club
     club_rows = (
         db.execute(
-            select(Team.club_name)
+            select(Team.club_id, Team.club_name, Team.logo_url)
             .join(  # type: ignore[arg-type]
                 PlayerPerformance,
                 Team.club_id == PlayerPerformance.team_id,
@@ -399,7 +408,11 @@ def get_career_summary(db: Session, player_id: int) -> dict:
         )
         .all()
     )
-    club_names = {r.club_name for r in club_rows if r.club_name}
+    # Dedupe by club_id, keep one row per club
+    clubs_by_id: dict[int, tuple[str, str | None]] = {}
+    for r in club_rows:
+        if r.club_name and r.club_id not in clubs_by_id:
+            clubs_by_id[r.club_id] = (r.club_name, r.logo_url)
 
     current_club_name: str | None = None
     player = get_player_by_id(db, player_id)
@@ -409,9 +422,15 @@ def get_career_summary(db: Session, player_id: int) -> dict:
             .scalar()
         )
     if current_club_name:
-        club_names.discard(current_club_name)
+        for cid, (cname, _) in list(clubs_by_id.items()):
+            if cname == current_club_name:
+                del clubs_by_id[cid]
+                break
 
-    previous_clubs = sorted(club_names)
+    previous_clubs = [
+        {"club_name": name, "logo_url": logo_url}
+        for _id, (name, logo_url) in sorted(clubs_by_id.items(), key=lambda x: (x[1][0].lower(), x[0]))
+    ]
 
     return {
         "seasons_played": seasons_played,
@@ -430,11 +449,17 @@ def get_player_details(db: Session, player_id: int) -> dict | None:
     career = get_career_summary(db, player_id)
 
     current_club_name: str | None = None
+    current_club_logo_url: str | None = None
     if player.current_club_id is not None:
-        current_club_name = (
-            db.execute(select(Team.club_name).where(Team.club_id == player.current_club_id))
-            .scalar()
+        club_row = (
+            db.execute(
+                select(Team.club_name, Team.logo_url).where(Team.club_id == player.current_club_id)
+            )
+            .first()
         )
+        if club_row:
+            current_club_name = club_row.club_name
+            current_club_logo_url = club_row.logo_url
 
     return {
         "player_id": player.player_id,
@@ -443,8 +468,10 @@ def get_player_details(db: Session, player_id: int) -> dict | None:
         "main_position": player.main_position,
         "player_image_url": player.player_image_url,
         "current_club_name": current_club_name,
+        "current_club_logo_url": current_club_logo_url,
         "citizenship": player.citizenship,
         "age": _age_from_dob(player.date_of_birth),
+        "height": player.height,
         "current_market_value": current_value,
         "market_value_history": history,
         "career": career,
@@ -463,6 +490,7 @@ def player_to_response_dict(
     total_cards: int | None = None
     total_clean_sheets: int | None = None
     current_club_name: str | None = None
+    current_club_logo_url: str | None = None
     if db is not None:
         mv = (
             db.execute(
@@ -508,10 +536,17 @@ def player_to_response_dict(
             total_cards = int(stats_row.c)
             total_clean_sheets = int(stats_row.cs)
         if player.current_club_id is not None:
-            current_club_name = (
-                db.execute(select(Team.club_name).where(Team.club_id == player.current_club_id))
-                .scalar()
+            club_row = (
+                db.execute(
+                    select(Team.club_name, Team.logo_url).where(
+                        Team.club_id == player.current_club_id
+                    )
+                )
+                .first()
             )
+            if club_row:
+                current_club_name = club_row.club_name
+                current_club_logo_url = club_row.logo_url
     return _player_to_response(
         player,
         latest_value=latest_value,
@@ -521,6 +556,7 @@ def player_to_response_dict(
         total_cards=total_cards,
         total_clean_sheets=total_clean_sheets,
         current_club_name=current_club_name,
+        current_club_logo_url=current_club_logo_url,
     )
 
 
