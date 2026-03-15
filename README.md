@@ -1,15 +1,15 @@
 # Football Analytics API
 
-REST API for football analytics with favourite player lists. Dataset resources (players, teams, performances, transfers, market value) are read-only; **FavouriteList** is the main CRUD resource.
+REST API for football analytics with a minimal web frontend. Dataset resources (players, teams, performances, transfers, market values) are read-only; **FavouriteList** is the main CRUD resource (create, read, update, delete lists; add/remove players). The frontend provides a players table (sort, filter, pagination), favourite lists (card-based UI), analytics (top scorers, assists, market values, minutes, youngest stars), and a player-details modal (career summary, market value history).
 
 ## Tech stack
 
-- **Backend**: Python, FastAPI
-- **ORM**: SQLAlchemy
-- **Validation**: Pydantic
-- **Database**: SQLite (dev)
-- **Testing**: pytest + httpx
-- **Frontend**: HTML, CSS, JavaScript (vanilla)
+- **Backend:** Python 3.10+, FastAPI
+- **ORM:** SQLAlchemy 2.x
+- **Validation:** Pydantic
+- **Database:** SQLite (development)
+- **Testing:** pytest, FastAPI TestClient
+- **Frontend:** Vanilla HTML, CSS, JavaScript
 
 ## Setup
 
@@ -42,12 +42,11 @@ Edit `.env` and set at least:
 - `DATABASE_URL` – e.g. `sqlite:///./football_analytics.db`
 - `API_KEY` – secret key for `X-API-Key` header
 
-### 4. Dataset filter (Step 0) and database
+### 4. Dataset filter and database
 
-The dataset is scoped to **top-5 European leagues** only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1).  
-Definition: `scripts/constants.py` → `TOP_5_COMPETITION_IDS = ["GB1", "ES1", "IT1", "L1", "FR1"]`.
+The dataset is scoped to **top-five European leagues** only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1). Definition: `scripts/constants.py` → `TOP_5_COMPETITION_IDS = ["GB1", "ES1", "IT1", "L1", "FR1"]`.
 
-**Option A (chosen): filtered CSVs**
+**Filtered CSVs (recommended)**
 
 - Run the filter script from the project root. It builds **allowed_club_ids** (from `team_details` and `team_competitions_seasons` where `competition_id` in TOP_5) and **allowed_player_ids** (from `player_performances` where `competition_id` in TOP_5, union players whose `current_club_id` is in allowed clubs). It then writes filtered CSVs to `web/filtered/`:
 
@@ -77,11 +76,8 @@ python scripts/filter_dataset.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- API: http://localhost:8000 , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/app/
-- OpenAPI docs: http://localhost:8000/docs , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/docs
-- OpenAPI JSON: http://localhost:8000/openapi.json , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/openapi.json
-- ReDoc: https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/redoc
-
+- **Local:** API at `http://localhost:8000`, frontend at `http://localhost:8000/app/`, interactive docs at `http://localhost:8000/docs` (Swagger) and `http://localhost:8000/redoc`.
+- **GitHub Codespaces:** Use the forwarded port URL (e.g. `https://<workspace>-8000.app.github.dev`) for the API and `/app/`, `/docs`, `/redoc` as above.
 
 ### 6. Run tests
 
@@ -91,11 +87,12 @@ pytest
 
 ### 7. Frontend
 
-- Open the app URL (e.g. http://localhost:8000/); you are redirected to **/app/** where the frontend is served.
-- **Players**: sort (name, age, market_value, minutes_played), order, pagination (Prev/Next); table of players.
-- **Favourite lists**: create a list (name), view lists, click "View players" to see/add/remove players (add by player ID, remove with button).
-- Set your **API key** in the bar at the top (stored in `localStorage`) so all requests use the `X-API-Key` header. Without it you get "Invalid or missing API key" on API calls.
-- One `script.js` and one `styles.css`; no framework.
+- Open the app (e.g. `http://localhost:8000/`); you are redirected to **/app/** where the single-page frontend is served.
+- **Players:** Table with sort (name, age, market value, minutes, goals, etc.), order (asc/desc), pagination, and optional search and league/season filters. Click a row to open player details (snapshot, career summary, market value history). Use "Add to list" to add a player to a favourite list.
+- **Favourite lists:** Create lists by name; your lists appear as cards. Click a list to open it, then search for players by name and click a result to add, or remove with the button. Toggle between cards and table view.
+- **Analytics:** Top scorers, top assists, top market values, most minutes played, youngest stars (with league, season, and age filters).
+- **API key:** Set the key in the header bar (stored in `localStorage`). All API requests use the `X-API-Key` header; without it you get "Invalid or missing API key".
+- Single `index.html`, `script.js`, and `styles.css`; no frontend framework.
 
 ## Project structure
 
@@ -126,16 +123,18 @@ tests/
 
 ## API
 
-- Base path: `/api/v1`
-- Authentication: `X-API-Key` header required for `/api/v1/*` (documented in the OpenAPI security scheme).
-- **API documentation (PDF):** [docs/API_Documentation.pdf](docs/API_Documentation.pdf). Interactive docs at `/docs` and `/redoc`.
-- **Technical report (single PDF for submission):** [docs/Technical_Report.pdf](docs/Technical_Report.pdf) — full report plus GenAI declaration (Appendix A). To regenerate: `python scripts/export_report_pdf.py`.
+- **Base path:** `/api/v1/` (trailing slash; all endpoints use consistent trailing slashes).
+- **Authentication:** `X-API-Key` header required for all `/api/v1/*` routes (see OpenAPI security scheme at `/docs`).
+- **API documentation (PDF):** [docs/API_Documentation.pdf](docs/API_Documentation.pdf). Interactive docs when the server is running: `/docs` (Swagger UI), `/redoc`.
+- **Technical report (PDF):** [docs/Technical_Report.pdf](docs/Technical_Report.pdf) — design, stack justification, testing, GenAI declaration. To regenerate from Markdown: `python scripts/export_report_pdf.py`.
 
 ## Dataset
 
-- Source: filtered football dataset derived from Transfermarkt CSV exports (as provided in the coursework materials).\n- Scope: top-5 European leagues only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) using `competition_id` in `TOP_5_COMPETITION_IDS`.\n- Licence: follow the licensing/terms-of-use specified in the coursework brief and the original data provider (Transfermarkt / Kaggle bundle). Do not redistribute raw data outside the course without checking licence/ToS.
+- **Source:** Filtered football dataset derived from Transfermarkt CSV exports (as provided in the coursework materials).
+- **Scope:** Top-five European leagues only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) via `competition_id` in `TOP_5_COMPETITION_IDS` (`scripts/constants.py`).
+- **Licence:** Follow the licensing and terms of use specified in the coursework brief and the original data provider (Transfermarkt / Kaggle). Do not redistribute raw data outside the course without checking licence and ToS.
 
 ## Deployment
 
-- Current status: **not deployed** – the project is designed to run locally with SQLite. All code, scripts, and tests are in this repo.
-- Recommended host (for coursework): PythonAnywhere or a Docker-based host (Railway, Render, etc.).\n- When deployed, set `DATABASE_URL` and `API_KEY` via environment variables on the host, run `scripts/create_db.py` and `scripts/load_data.py` once, and expose the ASGI app `app.main:app`.\n- Add the live API URL (and frontend URL, e.g. `/app/`) to this section and to the technical report if you complete deployment.
+- **Current status:** Not deployed; the project runs locally with SQLite. All code, scripts, and tests are in this repository.
+- **For coursework deployment:** Use a host such as PythonAnywhere or a Docker-based platform (e.g. Railway, Render). Set `DATABASE_URL` and `API_KEY` in the host environment, run `scripts/create_db.py` and `scripts/load_data.py` once to create and populate the database, then run the ASGI app `app.main:app` (e.g. with Gunicorn + Uvicorn). Add the live API URL (and frontend at `/app/`) to this README and to the technical report once deployed.

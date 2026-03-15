@@ -1,7 +1,8 @@
-# Generative AI tools – Declaration
+# Generative AI Declaration
 
-**Module**: COMP3011  
-**Project**: Football Analytics API
+**Module:** COMP3011 Web Services and Web Data  
+**Assignment:** Coursework 1 – Individual Web Services API Development Project  
+**Project:** Football Analytics API
 
 ---
 
@@ -9,32 +10,43 @@
 
 | Tool / platform | Purpose |
 |-----------------|--------|
-| **Cursor (AI-assisted editor)** | Design and architecture discussion; code generation for FastAPI routers, Pydantic schemas, SQLAlchemy models, and service layer functions; refactoring (e.g. moving from mounted sub-app to single app with router dependencies). |
-| **Claude / Codex (via Cursor)** | Writing and editing Python (app code, scripts, tests); drafting README and API descriptions; suggesting test cases and validation behaviour (e.g. 422 for empty name, 404 for invalid player_id). |
+| **Cursor (AI-assisted editor)** | Architecture and API design; code generation and refactoring for FastAPI, SQLAlchemy, and Pydantic; CORS and routing (e.g. trailing-slash and redirect behaviour); frontend structure and styling (favourite lists, list picker modal, analytics-style layout). |
+| **Claude / Codex (via Cursor)** | Python implementation (routers, services, schemas, models); test design and validation behaviour; README and API documentation; data design (e.g. club logos, player details, career summary, analytics endpoints). |
 | **Other** | None. |
 
----
-
-## 2. Sample conversation logs (appendix)
-
-**Excerpt 1 – API key dependency and router setup**  
-I asked how to require X-API-Key on all `/api/v1` routes. The suggestion was to add a dependency (e.g. `require_api_key`) that reads the header and returns 401 if missing or invalid, and to attach it to the API v1 router via `APIRouter(..., dependencies=[Depends(require_api_key)]). I applied this so every route under `/api/v1` is protected without repeating the check in each handler.
-
-**Excerpt 2 – Player details endpoint design**  
-I asked how to return current market value, full market value history, and a career summary from one endpoint. The suggestion was a single `GET /players/{id}/details` response with: current value as the latest row per player in `player_market_value` (max date); history as all rows for that player ordered by date; career with seasons played (distinct from performances) and previous clubs (distinct team names from performances/teams or transfers). I implemented the service and Pydantic response schema (e.g. `PlayerDetailsResponse` with `market_value_history`, `career`) as suggested and wired the router.
-
-**Excerpt 3 – Top assists and youngest stars queries**  
-I requested analytics endpoints for top assists (sum of assists per player, optional season/competition filters) and youngest stars (players under an age limit, aggregated minutes and goals, sorted by minutes then goals). I was given SQLAlchemy query patterns (group by player, join performances/players, filter by age from date_of_birth). I implemented the routes and response schemas (e.g. `TopAssistsResponse`, `YoungestStarResponse`) and added the same optional query parameters as the existing analytics endpoints.
-
-**Excerpt 4 – Test cases for new endpoints**  
-I asked for tests for the new player details and analytics endpoints without changing the test DB. The suggestion was: (1) test_player_details_ok – GET players?limit=1, take first id, GET details, assert 200 and presence of player_id, player_name, current_market_value, market_value_history, career (seasons_played, previous_clubs); (2) test_player_details_404 for id 999999999; (3) test_top_assists and test_youngest_stars – GET with limit, assert 200 and list shape, and if non-empty assert first item keys and optionally descending order. I added these to test_players.py and test_analytics.py and ran pytest until green.
+All use was declared; no undisclosed tools were used.
 
 ---
 
-## 3. Reflection on "creative, high-level" use
+## 2. Sample conversation excerpts (summary)
 
-I used GenAI for both high-level design (e.g. REST structure, endpoint design, analytics ideas) and implementation (code, tests, documentation). I checked and adapted all suggestions—for example around security (API key handling), error handling (401/404/422), and validation (request/response schemas)—and ran tests to confirm behaviour. I understand and can explain all code and design choices in this submission.
+The following summarise representative exchanges. Exported conversation logs are provided as supplementary material (see technical report appendix).
+
+**Excerpt 1 – API key and router design**  
+I asked how to enforce X-API-Key on all `/api/v1` routes. The suggestion was a single dependency (e.g. `require_api_key`) that validates the header and returns 401 if missing or invalid, attached to the API v1 router via `APIRouter(..., dependencies=[Depends(require_api_key)])`. I implemented this so every route under `/api/v1` is protected without duplicating checks in handlers.
+
+**Excerpt 2 – Player details endpoint**  
+I asked how to return current market value, full market value history, and a career summary from one endpoint. The suggestion was a single `GET /players/{id}/details` response: current value from the latest row per player in `player_market_value`; history as all rows for that player ordered by date; career with seasons played and previous clubs (distinct team names from performances/teams or transfers). I implemented the service, Pydantic schema (`PlayerDetailsResponse` with `market_value_history`, `career`), and router accordingly.
+
+**Excerpt 3 – Analytics: top assists and youngest stars**  
+I requested analytics endpoints for top assists (sum of assists per player, optional season/competition filters) and youngest stars (players under an age limit, aggregated minutes and goals, configurable sort). I was given SQLAlchemy patterns (group by player, joins, age from `date_of_birth`). I implemented the routes and response schemas (`TopAssistsResponse`, `YoungestStarResponse`) and aligned query parameters with existing analytics endpoints.
+
+**Excerpt 4 – Test cases**  
+I asked for tests for the new player-details and analytics endpoints without altering the test DB. The suggestion covered: (1) `test_player_details_ok` – GET players with limit, take first id, GET details, assert 200 and required fields; (2) `test_player_details_404` for invalid id; (3) tests for top assists and youngest stars asserting 200, list shape, and optional order. I added these to `test_players.py` and `test_analytics.py` and ran pytest to verify.
+
+**Excerpt 5 – CORS and frontend behaviour**  
+I described 307 redirects and failed preflight for `/api/v1/favourite-lists` when using trailing slashes. The suggestion was to use consistent trailing-slash URLs and to allow Codespaces origins in CORS (e.g. `allow_origin_regex` for `*.app.github.dev`). I applied the URL and CORS changes so POSTs from the frontend succeed in Codespaces and locally.
 
 ---
 
-*Declaration to be completed by the student and submitted with the technical report as required by the coursework brief. Replace placeholders with your actual tool names, excerpts, and reflection.*
+## 3. Reflection and analysis of GenAI use
+
+I used generative AI in a **methodologically sound** way: for both high-level design (REST structure, endpoint semantics, analytics ideas, frontend layout) and implementation (code, tests, documentation). I did not copy output verbatim; I evaluated every suggestion against the brief, security (e.g. API key handling), and consistency (status codes, validation, error shapes), adapted it where needed, and verified behaviour with tests and manual checks.
+
+I also used GenAI for **creative, solution-level** tasks: exploring alternative designs (e.g. single details endpoint vs. multiple calls), reimagining the frontend (list cards, analytics-style panels, list picker modal), and integrating additional data (club logos, career summary with previous clubs). I can explain and justify every design and implementation choice in this submission.
+
+---
+
+## 4. Supplementary material
+
+Exported conversation logs (examples of the interactions summarised above) are included in the technical report appendix and/or the repository as required by the coursework brief.

@@ -1,13 +1,14 @@
 # Football Analytics API – Technical Report
 
-**Module**: COMP3011  
-**Project**: REST API + minimal frontend for football analytics and favourite player lists.
+**Module:** COMP3011 Web Services and Web Data  
+**Assignment:** Coursework 1 – Individual Web Services API Development Project  
+**Project:** Football Analytics API (REST API and frontend for football analytics and favourite player lists)
 
 **Links (for submission):**
 
-- **GitHub repository:** [*Add your public repo URL here, e.g. https://github.com/username/football-analytics-api*]
-- **API documentation:** [API documentation (PDF)](docs/API_Documentation.pdf) in repo; interactive docs at `/docs` (Swagger UI) and `/redoc` when the app is running (or at *live-url*/docs if deployed).
-- **Presentation slides:** [*Add link to your slides, e.g. Google Drive or OneDrive*]
+- **GitHub repository:** https://github.com/Zakari21s/football-analytics-api.git
+- **API documentation:** [API Documentation (PDF)](docs/API_Documentation.pdf) in this repository. Interactive docs at `/docs` (Swagger UI) and `/redoc` when the server is running (or at *base-url*/docs if deployed).
+- **Presentation slides:** [*Insert link to your slides, e.g. Google Drive or OneDrive*]
 
 ---
 
@@ -57,7 +58,7 @@ The dataset (players, teams, performances, transfers, market values) is read-onl
 
 ## 3. Design choices
 
-**REST and URLs:** All API endpoints are under `/api/v1`. Resource-based paths: e.g. `GET /api/v1/players`, `GET /api/v1/players/{id}/performances`, `POST /api/v1/favourite-lists`, `GET /api/v1/favourite-lists/{id}/players`.
+**REST and URLs:** All API endpoints are under `/api/v1` and use consistent trailing slashes (e.g. `/api/v1/players/`, `/api/v1/favourite-lists/`) to avoid redirects. Resource-based paths: e.g. `GET /api/v1/players/`, `GET /api/v1/players/{id}/details/`, `POST /api/v1/favourite-lists/`, `GET /api/v1/favourite-lists/{id}/players/`.
 
 **Status codes:** 200 (OK), 201 (Created for POST), 204 (No Content for DELETE), 400/422 (validation), 401 (missing/invalid API key), 404 (resource not found), 409 (e.g. player already in list). Error responses use a consistent JSON shape (e.g. `{"detail": {"message": "...", "code": "..."}}`).
 
@@ -88,6 +89,8 @@ The dataset (players, teams, performances, transfers, market values) is read-onl
 
 **Dataset pipeline:** Data is filtered to top-five leagues (GB1, ES1, IT1, L1, FR1) in a dedicated script that builds allowed club/player IDs and writes filtered CSVs to `web/filtered/`. A separate import script loads these in FK order (teams → players → performances, transfers, market values) with batched commits and streaming reads to avoid loading entire files into memory.
 
+**Frontend scope:** The single-page frontend includes a players table (sort, order, pagination, search, league/season filters), favourite lists (create/list/delete lists, card-based list selection, add/remove players by search, cards/table view), an analytics tab (top scorers, assists, market values, minutes, youngest stars with filters), and a player-details modal (current snapshot, career summary with previous clubs and logos, market value history chart). API key is set via the header bar; all API calls use the `X-API-Key` header. CORS is configured for local and Codespaces origins so the frontend works when served from different origins.
+
 ---
 
 ## 5. Testing approach
@@ -97,6 +100,13 @@ Tests use pytest and FastAPI’s `TestClient` (no separate server). **conftest.p
 **Coverage:** (1) **Auth** – request without key → 401; wrong key → 401; valid key → 200 on a protected route. (2) **Favourite lists CRUD** – full cycle (create, get, patch, delete, then 404); 404 for get/patch/delete on missing id. (3) **Favourite list players** – add player, list players, add same again → 409, remove player, list empty; 404 when list or player does not exist. (4) **Validation** – POST favourite list with empty or missing name → 422; add player with non-existent player_id → 404. (5) **Players** – list returns 200 and structure `data`, `page`, `total_pages`, `total_count`; sort_by=name; get by id 200/404. (6) **Analytics** – GET top-scorers (and other analytics endpoints) returns 200 and list of items with expected fields.
 
 Tests are run with `pytest` or `pytest tests/ -v`; see README.
+
+### 5.1 Challenges and lessons learned
+
+- **API contract and clients:** Using consistent trailing-slash URLs and CORS for both local and Codespaces origins avoided 307 redirects and preflight failures; documenting base URLs and headers in the README and API docs reduced integration issues.
+- **Data shape and performance:** Aggregations (market value, minutes, goals) are computed at request time; for larger datasets, materialized views or cached aggregates would be worth considering. The single player-details endpoint simplified the frontend at the cost of a larger response; the trade-off was acceptable for this scope.
+- **Testing:** Relying on FastAPI’s TestClient and a shared SQLite DB kept tests simple and fast. Adding tests for new endpoints (details, analytics) alongside existing CRUD tests helped catch regressions early.
+- **GenAI-assisted development:** Using AI for design and implementation sped up development; verifying every suggestion (security, status codes, validation) and running tests after changes ensured correctness and understanding.
 
 ---
 
@@ -108,7 +118,7 @@ Deployment has **not** been performed for this submission. The project runs loca
 
 ## 7. Use of Generative AI
 
-Generative AI (e.g. Cursor/Claude) was used for design discussion, code generation, and report structure. All suggestions were verified and adapted; code and text were reviewed and edited as needed. Details and example excerpts are documented in the GenAI declaration (see Appendix A in this document, or `docs/GENAI_DECLARATION.md` in the repo). This section links the technical report to that declaration.
+Generative AI (Cursor with Claude/Codex) was used for architecture and API design, code generation (backend and frontend), testing, and documentation. Every suggestion was reviewed, adapted where necessary, and verified (e.g. by tests or manual checks). The use was methodical and aligned with the coursework rules: tools and purposes are declared, sample conversation excerpts are summarised, and reflection on use is provided. **Appendix A** below points to the full declaration and supplementary material; the canonical GenAI declaration is in **`docs/GENAI_DECLARATION.md`** in the repository. Exported conversation logs are provided as supplementary material as required by the brief.
 
 ---
 
@@ -116,41 +126,22 @@ Generative AI (e.g. Cursor/Claude) was used for design discussion, code generati
 
 - **Single API key:** Authentication is a single shared key; there is no per-user identity or rate limiting.
 - **SQLite:** Suitable for coursework and small scale; for production, a server DB (e.g. PostgreSQL) and proper migrations (e.g. Alembic) would be preferable.
-- **Frontend:** Minimal by design; improvements could include better error feedback, loading states, and responsive layout.
+- **Frontend:** The frontend includes players table, favourite lists (card-based UI), analytics, and player-details modal; further improvements could include richer error feedback, loading states, and broader responsive layout.
 - **Data:** Dataset is static after import; no live sync with an external source. Analytics are computed at request time (subqueries/aggregations); materialized views or cached aggregates could improve performance for heavy use.
 
 ---
 
-## Appendix A: GenAI Declaration
+## Appendix A: GenAI declaration and supplementary material
 
-*The following is the Generative AI tools declaration, included in this report for the single-PDF submission.*
+The full **Generative AI declaration** is in **`docs/GENAI_DECLARATION.md`** in this repository. It includes:
 
-### 1. Tools used and purpose
+1. **Tools used and purpose** – Cursor (AI-assisted editor) and Claude/Codex via Cursor, with declared purposes (architecture, code generation, CORS/frontend, tests, documentation).
+2. **Sample conversation excerpts** – Summaries of representative exchanges (API key and router design, player details endpoint, analytics endpoints, test cases, CORS and frontend behaviour).
+3. **Reflection and analysis** – Methodological use of GenAI, verification and adaptation of suggestions, and use for creative or solution-level tasks (e.g. endpoint design, frontend layout).
+4. **Supplementary material** – Exported conversation logs are provided as separate files (or in the submission package) as required by the coursework brief.
 
-| Tool / platform | Purpose |
-|-----------------|--------|
-| **Cursor (AI-assisted editor)** | Design and architecture discussion; code generation for FastAPI routers, Pydantic schemas, SQLAlchemy models, and service layer functions; refactoring (e.g. moving from mounted sub-app to single app with router dependencies). |
-| **Claude / Codex (via Cursor)** | Writing and editing Python (app code, scripts, tests); drafting README and API descriptions; suggesting test cases and validation behaviour (e.g. 422 for empty name, 404 for invalid player_id). |
-| **Other** | None. |
-
-### 2. Sample conversation logs (appendix)
-
-**Excerpt 1 – API key dependency and router setup**  
-I asked how to require X-API-Key on all `/api/v1` routes. The suggestion was to add a dependency (e.g. `require_api_key`) that reads the header and returns 401 if missing or invalid, and to attach it to the API v1 router via `APIRouter(..., dependencies=[Depends(require_api_key)]). I applied this so every route under `/api/v1` is protected without repeating the check in each handler.
-
-**Excerpt 2 – Player details endpoint design**  
-I asked how to return current market value, full market value history, and a career summary from one endpoint. The suggestion was a single `GET /players/{id}/details` response with: current value as the latest row per player in `player_market_value` (max date); history as all rows for that player ordered by date; career with seasons played (distinct from performances) and previous clubs (distinct team names from performances/teams or transfers). I implemented the service and Pydantic response schema (e.g. `PlayerDetailsResponse` with `market_value_history`, `career`) as suggested and wired the router.
-
-**Excerpt 3 – Top assists and youngest stars queries**  
-I requested analytics endpoints for top assists (sum of assists per player, optional season/competition filters) and youngest stars (players under an age limit, aggregated minutes and goals, sorted by minutes then goals). I was given SQLAlchemy query patterns (group by player, join performances/players, filter by age from date_of_birth). I implemented the routes and response schemas (e.g. `TopAssistsResponse`, `YoungestStarResponse`) and added the same optional query parameters as the existing analytics endpoints.
-
-**Excerpt 4 – Test cases for new endpoints**  
-I asked for tests for the new player details and analytics endpoints without changing the test DB. The suggestion was: (1) test_player_details_ok – GET players?limit=1, take first id, GET details, assert 200 and presence of player_id, player_name, current_market_value, market_value_history, career (seasons_played, previous_clubs); (2) test_player_details_404 for id 999999999; (3) test_top_assists and test_youngest_stars – GET with limit, assert 200 and list shape, and if non-empty assert first item keys and optionally descending order. I added these to test_players.py and test_analytics.py and ran pytest until green.
-
-### 3. Reflection on "creative, high-level" use
-
-I used GenAI for both high-level design (e.g. REST structure, endpoint design, analytics ideas) and implementation (code, tests, documentation). I checked and adapted all suggestions—for example around security (API key handling), error handling (401/404/422), and validation (request/response schemas)—and ran tests to confirm behaviour. I understand and can explain all code and design choices in this submission.
+For the single-PDF submission, either (a) append the contents of `GENAI_DECLARATION.md` to this report after this appendix, or (b) ensure the submission package includes both this technical report PDF and the GenAI declaration (and conversation log examples) as specified in the brief.
 
 ---
 
-*Report length: ~5 pages when rendered to PDF (main report) plus appendix. Export this Markdown to a single PDF (e.g. via Pandoc or print-to-PDF) for Minerva submission.*
+*Report length: main body within the recommended page limit; appendix as above. Export this document (and, if required, the GenAI declaration) to a single PDF for Minerva submission.*
