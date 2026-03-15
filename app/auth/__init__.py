@@ -4,7 +4,7 @@ Validates X-API-Key header; raises HTTPException 401 if missing or invalid.
 Uses APIKeyHeader for OpenAPI security scheme (Swagger Authorize).
 """
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Security, status, Request
 from fastapi.security import APIKeyHeader
 
 from app.config import settings
@@ -17,11 +17,13 @@ API_KEY_HEADER = APIKeyHeader(
 )
 
 
-def require_api_key(api_key: str | None = Security(API_KEY_HEADER)) -> str:
+def require_api_key(request: Request, api_key: str | None = Security(API_KEY_HEADER)) -> str:
     """
     Dependency: require valid X-API-Key header.
     Returns the key if valid; otherwise raises 401 with consistent JSON body.
     """
+    if request.method == "OPTIONS":
+        return ""
     if not settings.api_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

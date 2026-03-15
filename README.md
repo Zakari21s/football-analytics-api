@@ -77,9 +77,11 @@ python scripts/filter_dataset.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- API: http://localhost:8000
-- OpenAPI docs: http://localhost:8000/docs
-- OpenAPI JSON: http://localhost:8000/openapi.json
+- API: http://localhost:8000 , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/app/
+- OpenAPI docs: http://localhost:8000/docs , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/docs
+- OpenAPI JSON: http://localhost:8000/openapi.json , https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/openapi.json
+- ReDoc: https://congenial-capybara-5gqj6554gqpj34jjw-8000.app.github.dev/redoc
+
 
 ### 6. Run tests
 

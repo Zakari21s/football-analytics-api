@@ -90,7 +90,7 @@ async function loadPlayers() {
     if (season) params.season = season;
     if (search.trim()) params.search = search.trim();
     const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${API_BASE}/api/v1/players?${qs}`, { headers: apiHeaders() });
+    const res = await fetch(`${API_BASE}/api/v1/players/?${qs}`, { headers: apiHeaders() });
     if (res.status === 401) {
       showError('players-error', 'Invalid or missing API key.');
       return;
@@ -846,7 +846,7 @@ async function loadLists() {
   showError('lists-error', '');
   showEl('lists-loading', true);
   try {
-    const res = await fetch(`${API_BASE}/api/v1/favourite-lists`, { headers: apiHeaders() });
+    const res = await fetch(`${API_BASE}/api/v1/favourite-lists/`, { headers: apiHeaders() });
     if (res.status === 401) {
       showError('lists-error', 'Invalid or missing API key.');
       return;
@@ -1051,7 +1051,7 @@ async function searchPlayersByNameForList(query) {
     search: term,
   };
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${API_BASE}/api/v1/players?${qs}`, { headers: apiHeaders() });
+  const res = await fetch(`${API_BASE}/api/v1/players/?${qs}`, { headers: apiHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return data.data || [];
@@ -1086,7 +1086,7 @@ document.getElementById('list-create')?.addEventListener('click', async () => {
   if (!name) return;
   showError('lists-error', '');
   try {
-    const res = await fetch(`${API_BASE}/api/v1/favourite-lists`, {
+    const res = await fetch(`${API_BASE}/api/v1/favourite-lists/`, {
       method: 'POST',
       headers: apiHeaders(),
       body: JSON.stringify({ name }),
