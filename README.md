@@ -130,11 +130,19 @@ tests/
 
 ## Dataset
 
-- **Source:** Filtered football dataset derived from Transfermarkt CSV exports (as provided in the coursework materials).
+- **Source:** Filtered football dataset derived from Transfermarkt CSV exports (as provided in the coursework materials), originally obtained from a Kaggle dataset: `https://www.kaggle.com/datasets/xfkzujqjvx97n/football-datasets/code`.
 - **Scope:** Top-five European leagues only (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) via `competition_id` in `TOP_5_COMPETITION_IDS` (`scripts/constants.py`).
 - **Licence:** Follow the licensing and terms of use specified in the coursework brief and the original data provider (Transfermarkt / Kaggle). Do not redistribute raw data outside the course without checking licence and ToS.
 
 ## Deployment
 
-- **Current status:** Not deployed; the project runs locally with SQLite. All code, scripts, and tests are in this repository.
-- **For coursework deployment:** Use a host such as PythonAnywhere or a Docker-based platform (e.g. Railway, Render). Set `DATABASE_URL` and `API_KEY` in the host environment, run `scripts/create_db.py` and `scripts/load_data.py` once to create and populate the database, then run the ASGI app `app.main:app` (e.g. with Gunicorn + Uvicorn). Add the live API URL (and frontend at `/app/`) to this README and to the technical report once deployed.
+- **Live deployment (PythonAnywhere):**  
+  - Base URL: `https://zakari21s.pythonanywhere.com`.  
+  - Frontend and API are deployed at `https://zakari21s.pythonanywhere.com`.  
+  - The main UI is served at `https://zakari21s.pythonanywhere.com/app/`.  
+  - Interactive API docs are available at `https://zakari21s.pythonanywhere.com/docs` and ReDoc at `https://zakari21s.pythonanywhere.com/redoc`.
+- **Server configuration:**  
+  - `DATABASE_URL` is set to point at the SQLite database file on the host (e.g. `sqlite:////home/Zakari21s/football-analytics-api/football_analytics.db`).  
+  - `API_KEY` is set as an environment variable; the frontend API key bar must use the same value so that requests include a valid `X-API-Key` header.  
+  - Database tables and data are created by running `scripts/create_db.py` and `scripts/load_data.py` once on the host.
+- **Local development:** The project can still be run locally with SQLite using the setup steps above; the deployment does not change the local workflow.

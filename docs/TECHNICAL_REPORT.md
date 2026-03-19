@@ -1,147 +1,259 @@
+COMP3011 Web Services and Web Data module
+Coursework 1
+Slimani Zakaria
+201726008
+
 # Football Analytics API – Technical Report
 
-**Module:** COMP3011 Web Services and Web Data  
-**Assignment:** Coursework 1 – Individual Web Services API Development Project  
-**Project:** Football Analytics API (REST API and frontend for football analytics and favourite player lists)
+## Introduction
+
+This report presents the design and implementation of the Football Analytics API, developed as part of the COMP3011 Web Services and Web Data module. The project involves building a RESTful web service that provides football-related data analytics alongside a simple frontend interface for interacting with the API.
+
+The system enables users to explore football player data, perform analytical queries (e.g., top scorers, market values), and manage custom favourite player lists through a fully functional CRUD interface. The API is implemented using FastAPI, with a layered architecture that separates routing, business logic, and data access.
 
 **Links (for submission):**
 
-- **GitHub repository:** https://github.com/Zakari21s/football-analytics-api.git
-- **API documentation:** [API Documentation (PDF)](docs/API_Documentation.pdf) in this repository. Interactive docs at `/docs` (Swagger UI) and `/redoc` when the server is running (or at *base-url*/docs if deployed).
-- **Presentation slides:** [*Insert link to your slides, e.g. Google Drive or OneDrive*]
+- **GitHub repository:** https://github.com/Zakari21s/football-analytics-api
+- **API documentation:** API Documentation (PDF) in this repository. Interactive docs at `/docs` (Swagger UI) and `/redoc` when the server is running (or at base-url/docs).
+- **Presentation slides:** docs/Football_Analytics_Presentation.pptx
 
----
+## 1. Technology Stack and Justification
 
-## 1. Technology stack and justification
+The Football Analytics API was developed using a combination of modern web technologies selected for their simplicity, efficiency, and suitability for RESTful API development. The chosen stack supports rapid development, clear structure, and ease of testing, while remaining appropriate for the scope of the coursework project.
 
-| Layer       | Choice                    | Justification |
-|------------|---------------------------|---------------|
-| **Backend** | Python 3.10+, FastAPI     | Async support, automatic OpenAPI/Swagger, Pydantic validation, clear routing and dependency injection. |
-| **ORM**     | SQLAlchemy 2.x            | Mature ORM with declarative models, session management, and FK support; fits the ERD and CSV-derived schema. |
-| **Validation** | Pydantic              | Request/response schemas, clear validation errors (422), type-safe config via pydantic-settings. |
-| **Database** | SQLite                   | Single-file, no separate server; suitable for coursework and local deployment; can be swapped for PostgreSQL via `DATABASE_URL`. |
-| **Testing**  | pytest, FastAPI TestClient | In-process API tests, fixtures for client and auth headers; no need for httpx async for basic status-code and JSON tests. |
-| **Frontend** | Vanilla HTML, CSS, JS    | No framework; fetch API with X-API-Key; minimal scope as per brief (players list, favourite lists CRUD, add/remove players). |
+| Layer | Technology | Justification |
+|---|---|---|
+| Backend | Python 3.10+, FastAPI | Provides high performance with asynchronous support, automatic OpenAPI documentation (Swagger/ReDoc), and built-in validation, making it well suited for REST API development. |
+| ORM | SQLAlchemy 2.x | Enables structured interaction with relational data using models and relationships, supporting complex queries required for football datasets. |
+| Validation | Pydantic | Ensures type-safe request and response validation, producing consistent API outputs and clear error handling. |
+| Database | SQLite | Lightweight, file-based database requiring no server setup, suitable for development and small-scale deployment in coursework projects. |
+| Testing | pytest, FastAPI TestClient | Allows efficient testing of API endpoints, including status codes, validation, and JSON responses without running a live server. |
+| Frontend | HTML, CSS, JavaScript | Provides a lightweight interface for interacting with the API using fetch requests, sufficient for demonstrating functionality within project scope. |
 
-Environment configuration is via `.env` and `pydantic-settings`; no secrets in code. The API key is validated in a single dependency and applied to all `/api/v1/*` routes.
-
----
+This technology stack aligns with the principles of web service design introduced in the COMP3011 Web Services and Web Data lectures (University of Leeds, 2025).
 
 ## 2. Architecture
 
-Request flow is layered: **Client → FastAPI app → Auth (X-API-Key) → Routers → Services → Database**. Routers are thin (parse request, call service, map exceptions to HTTP); business logic lives in services and receives the DB session via dependency injection.
+The Football Analytics API follows a layered architecture that separates client interaction, request handling, business logic, and data access. This improves maintainability and ensures clear separation of concerns.
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────┐     ┌──────────┐
-│   Client /  │────▶│  FastAPI     │────▶│  Auth       │────▶│ Routers  │────▶│ Services │
-│   Frontend  │     │  app (CORS)  │     │  X-API-Key  │     │ (thin)   │     │ (logic)  │
-└─────────────┘     └──────────────┘     └─────────────┘     └──────────┘     └────┬─────┘
-                                                                                    │
-                                                                                    ▼
-                                                                             ┌──────────────┐
-                                                                             │   SQLite    │
-                                                                             │   (SQLAlchemy)
-                                                                             └──────────────┘
-```
+The architecture begins at the client (frontend), which sends HTTP requests to the API using JavaScript. These requests are handled by the FastAPI application, which acts as the system’s entry point and routes requests to the appropriate endpoints.
 
-**Key components:**
+Before accessing protected routes, requests pass through an authentication layer, where the X-API-Key is validated to ensure authorised access.
 
-- **app/main.py**: App factory, CORS, mount of API v1 router and frontend at `/app`; `/health` and `/docs` remain on the main app.
-- **app/auth**: Single dependency that reads `X-API-Key`, compares to config, returns 401 with a consistent JSON body if missing or invalid.
-- **app/routers**: One router per resource (players, teams, favourite_lists, analytics); all under `/api/v1` with the auth dependency.
-- **app/services**: Reusable functions (e.g. `get_players`, `get_top_scorers`) that take a DB session; no HTTP concerns.
-- **app/models / app/schemas**: SQLAlchemy models for dataset and application tables; Pydantic schemas for request/response and pagination.
+The router layer defines API endpoints for resources such as players, analytics, and favourite lists. Routers are kept thin and delegate processing to the service layer, which contains the core business logic, including data processing and analytics computations.
 
-The dataset (players, teams, performances, transfers, market values) is read-only from the API; the only full CRUD resource is **FavouriteList**, with **FavouriteListPlayer** used for many-to-many membership (add/remove/view list players).
+The SQLAlchemy layer manages communication with the database using models and sessions, enabling structured interaction with relational data.
 
----
+Finally, the SQLite database stores the football dataset and application data, providing persistent storage.
 
-## 3. Design choices
+## 3. Design Choices
 
-**REST and URLs:** All API endpoints are under `/api/v1` and use consistent trailing slashes (e.g. `/api/v1/players/`, `/api/v1/favourite-lists/`) to avoid redirects. Resource-based paths: e.g. `GET /api/v1/players/`, `GET /api/v1/players/{id}/details/`, `POST /api/v1/favourite-lists/`, `GET /api/v1/favourite-lists/{id}/players/`.
+The design of the Football Analytics API follows RESTful principles, focusing on simplicity, consistency, and usability. Key decisions were made regarding API structure, resource modelling, authentication, and data handling to ensure a maintainable and scalable system.
 
-**Status codes:** 200 (OK), 201 (Created for POST), 204 (No Content for DELETE), 400/422 (validation), 401 (missing/invalid API key), 404 (resource not found), 409 (e.g. player already in list). Error responses use a consistent JSON shape (e.g. `{"detail": {"message": "...", "code": "..."}}`).
+### RESTful Design
 
-**CRUD resource:** The main database-backed CRUD resource is **FavouriteList** (create, read list, read one, update name, delete). FavouriteListPlayer supports only add player, remove player, and list players (with optional sort); it is not a separate full CRUD resource.
+The API is structured using resource-based endpoints under a versioned prefix (`/api/v1/`), supporting future extensibility. For example, endpoints such as `GET /players/` and `POST /favourite-lists/` follow standard REST conventions. This approach improves clarity and follows REST principles from the COMP3011 lectures (University of Leeds, 2025).
 
-**Pagination:** List endpoints that return many items (e.g. players, performances, transfers) use `page`, `limit`, and respond with `{ "data": [...], "page", "total_pages", "total_count" }`.
+### Status Codes and Error Handling
 
-**Authentication:** Every `/api/v1/*` request must include a valid `X-API-Key` header; the dependency runs before route handlers. `/health`, `/docs`, and `/openapi.json` are unauthenticated.
+Standard HTTP status codes are used to represent request outcomes, including 200 OK, 201 Created, 204 No Content, 401 Unauthorized, and 404 Not Found. Error responses follow a consistent JSON structure, improving client-side handling and debugging.
 
----
+### Resource Design
 
-## 4. Implementation highlights
+The API distinguishes between full CRUD and partial resources. The FavouriteList resource supports full CRUD operations, while FavouriteListPlayer is treated as a relationship resource, supporting only add, remove, and view operations. This reduces unnecessary complexity.
 
-**Sorting (players and list players):** The API supports `sort_by` (e.g. `name`, `age`, `market_value`, `minutes_played`) and `order` (asc/desc). Age is derived from `date_of_birth`; market value from the latest row per player in `player_market_value` (subquery on max date); minutes from `SUM(minutes_played)` over `player_performances`. The same logic is used for listing players inside a favourite list.
+### Pagination and Filtering
 
-**Analytics:** Three endpoints demonstrate use of the football dataset: (1) **top-scorers** – `SUM(goals)` from performances, optional filter by season/competition_id; (2) **top-market-values** – latest value per player, ordered by value desc; (3) **most-minutes-played** – `SUM(minutes_played)` per player, optional season filter. All return a list of player identifiers and the computed metric.
+Pagination is implemented using query parameters such as page and limit, with responses including metadata (e.g., total pages and count). Sorting and filtering options are also supported, allowing flexible data retrieval without increasing the number of endpoints.
 
-**Advanced analytics:**
+### Authentication
 
-- **Player details** – `GET /api/v1/players/{id}/details` returns current market value, full market value history, and a career summary. Current market value is the latest value per player from `player_market_value` (row with max date per player). Market value history is all rows for that player ordered by date. Career summary includes seasons played (distinct seasons from `player_performances`) and previous clubs (distinct team names from performances joined with teams, or from transfer history). One combined response keeps the frontend modal simple.
-- **New analytics endpoints** – **top-assists**: sum of `assists` per player from `player_performances`, with optional season and competition filters, returned in descending order. **Youngest-stars**: players under a configurable age limit, with aggregated `total_minutes` and `total_goals` from performances, sorted by minutes then goals. Both use the same `PlayerPerformance` (and player) data as the existing analytics endpoints.
+A simple API key mechanism (X-API-Key) is used to protect all `/api/v1/*` endpoints. This approach is sufficient for coursework scope and integrates well with FastAPI’s dependency system, ensuring consistent authentication across the API.
 
-**Alternatives considered:**
+### Design Trade-offs
 
-- **REST vs GraphQL:** REST was chosen for simplicity and strong tooling (OpenAPI, Swagger/ReDoc). GraphQL would suit flexible client queries but was not required for this scope.
-- **SQLite vs PostgreSQL:** SQLite for single-file, no separate server, and easy local use; for production a server DB such as PostgreSQL with migrations (e.g. Alembic) would be preferred.
-- **One details endpoint vs several:** A single combined details endpoint was chosen for the player modal. Splitting into e.g. `/market-value-history` and `/career` would allow finer-grained caching but was not needed for the current frontend.
+SQLite was chosen for simplicity and ease of deployment, although a database such as PostgreSQL would be more suitable for larger-scale systems. Similarly, a single endpoint was used for player details to simplify frontend integration, at the cost of larger response sizes. REST was selected over GraphQL due to its simplicity and alignment with project requirements.
 
-**Dataset pipeline:** Data is filtered to top-five leagues (GB1, ES1, IT1, L1, FR1) in a dedicated script that builds allowed club/player IDs and writes filtered CSVs to `web/filtered/`. A separate import script loads these in FK order (teams → players → performances, transfers, market values) with batched commits and streaming reads to avoid loading entire files into memory.
+## 4. Implementation Highlights
 
-**Frontend scope:** The single-page frontend includes a players table (sort, order, pagination, search, league/season filters), favourite lists (create/list/delete lists, card-based list selection, add/remove players by search, cards/table view), an analytics tab (top scorers, assists, market values, minutes, youngest stars with filters), and a player-details modal (current snapshot, career summary with previous clubs and logos, market value history chart). API key is set via the header bar; all API calls use the `X-API-Key` header. CORS is configured for local and Codespaces origins so the frontend works when served from different origins.
+This section highlights key implementation aspects of the API, focusing on data processing, query handling, and analytical functionality.
 
----
+### Sorting and Aggregation
 
-## 5. Testing approach
+The API supports flexible sorting using query parameters such as sort_by and order. Fields such as age, market value, and minutes played are dynamically derived rather than directly stored.
 
-Tests use pytest and FastAPI’s `TestClient` (no separate server). **conftest.py** provides a shared client and `auth_headers` (valid API key). The same SQLite database used for local development is used for tests (no in-memory override in the current setup).
+For example, age is calculated from date_of_birth, while total minutes and goals are computed using aggregation queries over the player_performances table. Market value is determined using the most recent entry per player from the player_market_value dataset.
 
-**Coverage:** (1) **Auth** – request without key → 401; wrong key → 401; valid key → 200 on a protected route. (2) **Favourite lists CRUD** – full cycle (create, get, patch, delete, then 404); 404 for get/patch/delete on missing id. (3) **Favourite list players** – add player, list players, add same again → 409, remove player, list empty; 404 when list or player does not exist. (4) **Validation** – POST favourite list with empty or missing name → 422; add player with non-existent player_id → 404. (5) **Players** – list returns 200 and structure `data`, `page`, `total_pages`, `total_count`; sort_by=name; get by id 200/404. (6) **Analytics** – GET top-scorers (and other analytics endpoints) returns 200 and list of items with expected fields.
+### Analytics Endpoints
 
-Tests are run with `pytest` or `pytest tests/ -v`; see README.
+Several analytical endpoints were implemented to extract insights from the dataset:
 
-### 5.1 Challenges and lessons learned
+- Top scorers: total goals per player using aggregation
+- Top assists: total assists per player
+- Most minutes played: total minutes per player
+- Top market values: latest market value per player
 
-- **API contract and clients:** Using consistent trailing-slash URLs and CORS for both local and Codespaces origins avoided 307 redirects and preflight failures; documenting base URLs and headers in the README and API docs reduced integration issues.
-- **Data shape and performance:** Aggregations (market value, minutes, goals) are computed at request time; for larger datasets, materialized views or cached aggregates would be worth considering. The single player-details endpoint simplified the frontend at the cost of a larger response; the trade-off was acceptable for this scope.
-- **Testing:** Relying on FastAPI’s TestClient and a shared SQLite DB kept tests simple and fast. Adding tests for new endpoints (details, analytics) alongside existing CRUD tests helped catch regressions early.
-- **GenAI-assisted development:** Using AI for design and implementation sped up development; verifying every suggestion (security, status codes, validation) and running tests after changes ensured correctness and understanding.
+These endpoints support optional filters such as season or competition, allowing more targeted queries. All analytics are computed at request time, ensuring up-to-date results without requiring precomputed data.
 
----
+### Player Details Endpoint
+
+A dedicated endpoint (`/players/{id}/details/`) was implemented to provide a comprehensive view of a player. This includes:
+
+- Current market value (latest entry)
+- Market value history (time-series data)
+- Career summary (seasons played and previous clubs)
+
+Combining these elements into a single response simplifies frontend integration, as all relevant information can be retrieved with one request.
+
+### Data Processing Pipeline
+
+The dataset was pre-processed before being loaded into the database. Data was filtered to include only relevant leagues, and CSV files were imported using scripts that respect foreign key relationships (e.g. teams before players).
+
+To improve efficiency, data loading was performed using batched inserts and streaming techniques, avoiding loading entire files into memory.
+
+### Design Considerations
+
+The implementation prioritises simplicity and clarity while still demonstrating advanced functionality such as aggregation, filtering, and relational queries. While analytics are computed at request time for flexibility, this may introduce performance limitations at scale. In larger systems, techniques such as caching or materialised views could be used to optimise performance.
+
+## 5. Testing Approach
+
+Testing was carried out using pytest and FastAPI’s TestClient, allowing API endpoints to be tested without running a live server. This approach enabled efficient validation of request handling, response structure, and error conditions.
+
+The testing strategy focused on key functional areas:
+
+- Authentication: verifying that requests without a valid API key return 401 Unauthorized, while valid requests succeed
+- CRUD operations: testing the full lifecycle of favourite lists (create, retrieve, update, delete), including handling of invalid IDs
+- Relationship operations: ensuring correct behaviour when adding or removing players from favourite lists, including prevention of duplicates (409 Conflict)
+- Validation: confirming that invalid inputs (e.g. missing fields) return appropriate error responses (422 Unprocessable Entity)
+- Data retrieval: verifying that endpoints such as players and analytics return the expected structure and status codes
+
+Tests were executed using `pytest tests/ -v`, and a shared configuration provided reusable components such as a test client and authentication headers.
+
+Overall, this testing approach ensures that core API functionality is reliable and behaves as expected under both normal and edge-case conditions.
 
 ## 6. Deployment
 
-Deployment has **not** been performed for this submission. The project runs locally with SQLite. The README describes how to run the server (`uvicorn app.main:app`), create the DB, load data, and run tests. When deployment is performed, replace this paragraph with one or two sentences: where the app is deployed (e.g. PythonAnywhere or Render), that `DATABASE_URL` and `API_KEY` are set, and that `create_db` and `load_data` were run once. Add the live API URL (and frontend URL if applicable).
+The API was deployed using PythonAnywhere, making it accessible through a public URL. The application is hosted with the same codebase used in local development, ensuring consistency between environments.
+
+Live deployment links:
+
+- Base URL: `https://zakari21s.pythonanywhere.com`
+- Frontend: `https://zakari21s.pythonanywhere.com/app/`
+- Swagger UI: `https://zakari21s.pythonanywhere.com/docs`
+- ReDoc: `https://zakari21s.pythonanywhere.com/redoc`
+
+Environment variables such as the database path and API key were configured on the host system. The SQLite database was initialised and populated using dedicated scripts before deployment.
+
+The API documentation is available through Swagger UI and ReDoc, allowing interactive testing of endpoints. The frontend is served through the same application, enabling direct interaction with the API.
+
+## 7. Use of Generative AI (see Appendix A)
+
+Generative AI tools were used throughout this project to support architecture design, endpoint planning, implementation, testing, and documentation. AI outputs were treated as suggestions rather than final answers: each proposed change was reviewed, adapted to project requirements, and validated through manual checks and automated tests.
+
+This approach enabled faster iteration while maintaining technical understanding and ownership of decisions. In particular, AI support was used to explore alternative API designs, refine query logic for analytics endpoints, and improve consistency in validation and error handling.
+
+A full declaration of tools used, purposes, representative interaction excerpts, and reflective analysis is provided in Appendix A.
+
+## 8. Limitations and Future Work
+
+The current system has several limitations. Authentication is based on a single API key, without user-specific access control or rate limiting. Additionally, SQLite is suitable for small-scale use but does not support high concurrency or large-scale deployment.
+
+Analytics are computed at request time, which may impact performance for larger datasets. Future improvements could include caching or precomputed aggregates to optimise performance.
+
+Further enhancements could involve implementing a more advanced authentication system, migrating to a scalable database such as PostgreSQL, and improving the frontend with better user experience and responsiveness.
+
+## 9. Conclusion
+
+In conclusion, the Football Analytics API demonstrates the design and implementation of a RESTful web service using modern technologies. The system integrates data processing, analytics, and user-driven functionality through a structured and modular architecture.
+
+The project applies key software engineering principles, including separation of concerns, consistent API design, and effective testing. While the current implementation meets the coursework requirements, it also provides a foundation for future extensions and improvements.
 
 ---
 
-## 7. Use of Generative AI
+## Appendix A: Generative AI Declaration
 
-Generative AI (Cursor with Claude/Codex) was used for architecture and API design, code generation (backend and frontend), testing, and documentation. Every suggestion was reviewed, adapted where necessary, and verified (e.g. by tests or manual checks). The use was methodical and aligned with the coursework rules: tools and purposes are declared, sample conversation excerpts are summarised, and reflection on use is provided. **Appendix A** below points to the full declaration and supplementary material; the canonical GenAI declaration is in **`docs/GENAI_DECLARATION.md`** in the repository. Exported conversation logs are provided as supplementary material as required by the brief.
+### A.1 Tools used and purpose
 
----
+The following Generative AI tools were used during this project:
 
-## 8. Limitations and future work
+- Cursor (AI-assisted development environment): used for planning architecture, refining API structure, improving code clarity, and drafting technical documentation.
+- Claude/Codex models via Cursor: used to generate and review candidate implementations for FastAPI routes, SQLAlchemy queries, Pydantic schemas, test cases, and frontend integration patterns.
+- Other GenAI tools: none.
 
-- **Single API key:** Authentication is a single shared key; there is no per-user identity or rate limiting.
-- **SQLite:** Suitable for coursework and small scale; for production, a server DB (e.g. PostgreSQL) and proper migrations (e.g. Alembic) would be preferable.
-- **Frontend:** The frontend includes players table, favourite lists (card-based UI), analytics, and player-details modal; further improvements could include richer error feedback, loading states, and broader responsive layout.
-- **Data:** Dataset is static after import; no live sync with an external source. Analytics are computed at request time (subqueries/aggregations); materialized views or cached aggregates could improve performance for heavy use.
+All AI use is declared in this appendix. No undeclared AI tools were used.
 
----
+### A.2 Representative conversation examples
 
-## Appendix A: GenAI declaration and supplementary material
+The examples below summarise representative interactions. They demonstrate how AI support was used and how outputs were reviewed before adoption.
 
-The full **Generative AI declaration** is in **`docs/GENAI_DECLARATION.md`** in this repository. It includes:
+**Example 1 – Authentication design**
 
-1. **Tools used and purpose** – Cursor (AI-assisted editor) and Claude/Codex via Cursor, with declared purposes (architecture, code generation, CORS/frontend, tests, documentation).
-2. **Sample conversation excerpts** – Summaries of representative exchanges (API key and router design, player details endpoint, analytics endpoints, test cases, CORS and frontend behaviour).
-3. **Reflection and analysis** – Methodological use of GenAI, verification and adaptation of suggestions, and use for creative or solution-level tasks (e.g. endpoint design, frontend layout).
-4. **Supplementary material** – Exported conversation logs are provided as separate files (or in the submission package) as required by the coursework brief.
+- Task: enforce authentication across all API v1 endpoints.
+- Prompt summary: asked how to apply API key checks consistently in FastAPI.
+- AI suggestion summary: use a shared dependency (e.g., require_api_key) and attach it at router level for /api/v1.
+- Author action: implemented dependency-based validation of X-API-Key and applied it to protected routes.
+- Verification: confirmed unauthorized requests return 401 and authorized requests succeed.
 
-For the single-PDF submission, either (a) append the contents of `GENAI_DECLARATION.md` to this report after this appendix, or (b) ensure the submission package includes both this technical report PDF and the GenAI declaration (and conversation log examples) as specified in the brief.
+**Example 2 – Player details endpoint**
 
----
+- Task: provide richer player information in one request.
+- Prompt summary: asked how to combine current market value, history, and career summary.
+- AI suggestion summary: query latest market-value row, include ordered historical values, and aggregate career metadata.
+- Author action: implemented /players/{id}/details using service + schema layers.
+- Verification: checked response structure and not-found behavior.
 
-*Report length: main body within the recommended page limit; appendix as above. Export this document (and, if required, the GenAI declaration) to a single PDF for Minerva submission.*
+**Example 3 – Analytics endpoint extension**
+
+- Task: add additional analytics beyond top scorers.
+- Prompt summary: requested help designing top-assists and youngest-stars endpoints with filters.
+- AI suggestion summary: use grouped SQLAlchemy queries with optional season/competition filters and age-derived constraints.
+- Author action: implemented new endpoints with consistent query parameters and response models.
+- Verification: validated status codes, schema shape, and filter behavior via tests/manual calls.
+
+**Example 4 – Frontend/API integration issues**
+
+- Task: resolve request failures caused by URL/CORS mismatch.
+- Prompt summary: described redirect/preflight issues and asked for corrective approach.
+- AI suggestion summary: keep endpoint URL patterns consistent and align frontend calls with backend route style; adjust CORS policy accordingly.
+- Author action: updated request paths and configuration to ensure consistent behavior.
+- Verification: retested frontend actions (including POST operations) in local/deployed environments.
+
+**Example 5 – Testing strategy**
+
+- Task: improve confidence in API behavior.
+- Prompt summary: asked what tests should be added for CRUD, validation, and analytics.
+- AI suggestion summary: include lifecycle tests, error-path tests (404, 409, 422, 401), and response-shape assertions.
+- Author action: added/extended pytest coverage for core flows.
+- Verification: executed test suite and reviewed outcomes.
+
+### A.3 Reflection and analysis of GenAI use
+
+GenAI was used in a methodical and supervised way. Outputs were treated as draft suggestions, not final truth. Each suggestion was evaluated against coursework requirements, API design principles, and project constraints before being integrated.
+
+The main benefits were:
+
+- faster iteration on architecture and endpoint design;
+- improved consistency in response formats, validation, and error handling;
+- broader exploration of alternatives (e.g., endpoint shapes, query design, and integration options).
+
+The main limitations were:
+
+- occasional generic recommendations requiring domain-specific adaptation;
+- need for careful verification to avoid incorrect assumptions in generated code/text;
+- extra review time to ensure maintainability and correctness.
+
+Overall, GenAI improved productivity and ideation, while final technical judgement, implementation choices, and validation remained the author’s responsibility.
+
+### A.4 Supplementary evidence
+
+Exported conversation logs and representative excerpts are provided as supplementary material accompanying this submission. These records document the interactions summarised above and provide evidence of declared GenAI usage in accordance with module guidance.
+
+## Reference List
+
+1. Alsalka, M. (2025) COMP3011 Web Services and Web Data: Coursework 1 Assessment Brief. University of Leeds
+2. FastAPI (2026) FastAPI documentation. Available at: https://fastapi.tiangolo.com/ (Accessed: 17 March 2026).
+3. Kaggle (n.d.) Football datasets (Transfermarkt-derived). Available at: https://www.kaggle.com/datasets/xfkzujqjvx97n/football-datasets/code (Accessed: 17 March 2026).
+4. Pydantic (2026) Pydantic documentation. Available at: https://docs.pydantic.dev/ (Accessed: 17 March 2026).
+5. pytest (2026) pytest documentation. Available at: https://docs.pytest.org/ (Accessed: 17 March 2026).
+6. PythonAnywhere (2026) PythonAnywhere documentation. Available at: https://help.pythonanywhere.com/ (Accessed: 17 March 2026).
+7. SQLAlchemy (2026) SQLAlchemy documentation. Available at: https://docs.sqlalchemy.org/ (Accessed: 17 March 2026).
